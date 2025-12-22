@@ -1,65 +1,187 @@
-import Image from "next/image";
+import { auth } from "@/auth";
+import { fetchDailyTasks } from "@/lib/api/todoist";
+import { fetchUpcomingEvents } from "@/lib/api/google-calendar";
+import { fetchGitHubActivity, fetchContributionData } from "@/lib/api/github";
+import { fetchWeather } from "@/lib/api/weather";
+import { fetchTodayHabits } from "@/app/actions/habits";
+import { calculateScore } from "@/lib/scorometer";
 
-export default function Home() {
+import { DashboardShell } from "@/components/layout/DashboardShell";
+import { ContributionGraph } from "@/components/dashboard/ContributionGraph";
+import { MorningGreeting } from "@/components/dashboard/MorningGreeting";
+import { WeatherWidget } from "@/components/dashboard/WeatherWidget";
+import { ProductivityChart } from "@/components/dashboard/ProductivityChart";
+import { HabitTracker } from "@/components/dashboard/HabitTracker";
+import { TaskList } from "@/components/dashboard/TaskList";
+import { CalendarWidget } from "@/components/dashboard/CalendarWidget";
+import { MusicWidget } from "@/components/dashboard/MusicWidget";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { QuickActionsWidget } from "@/components/widgets/QuickActionsWidget";
+import { LiveClockWidget } from "@/components/widgets/LiveClockWidget";
+import { GoalProgressWidget } from "@/components/widgets/GoalProgressWidget";
+import { FocusSessionsWidget } from "@/components/widgets/FocusSessionsWidget";
+
+export default async function Home() {
+  const session = await auth();
+
+  // Fetch all data in parallel with proper error handling
+  const [tasks, events, weather, habits, contributions] =
+    await Promise.allSettled([
+      fetchDailyTasks(),
+      // @ts-ignore - AccessToken is added in session callback
+      fetchUpcomingEvents(session?.accessToken),
+      fetchWeather(),
+      fetchTodayHabits(),
+      fetchContributionData(),
+    ]);
+
+  // Extract values with fallbacks
+  const tasksData = tasks.status === "fulfilled" ? tasks.value : [];
+  const eventsData = events.status === "fulfilled" ? events.value : [];
+  const weatherData = weather.status === "fulfilled" ? weather.value : null;
+  const habitsData = habits.status === "fulfilled" ? habits.value : [];
+  const contributionsData =
+    contributions.status === "fulfilled" ? contributions.value : [];
+
+  const score = calculateScore(tasksData, eventsData, []);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <DashboardShell>
+      <div className="flex flex-col gap-8 pb-8">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <MorningGreeting />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Top Row: Quick Glance Stats */}
+        <div className="grid gap-4 md:grid-cols-4 stagger">
+          {/* Weather Card */}
+          <Card className="col-span-1 gradient-cool border-0 hover-lift fade-in glow-accent">
+            <CardContent className="p-6 h-full">
+              <WeatherWidget data={weather} />
+            </CardContent>
+          </Card>
+
+          {/* Productivity Score */}
+          <Card className="col-span-1 md:col-span-1 glass hover-lift fade-in">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Focus Score
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0 pb-4">
+              <ProductivityChart score={score} />
+            </CardContent>
+          </Card>
+
+          {/* Habits */}
+          <Card className="col-span-1 md:col-span-2 glass hover-lift fade-in">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span className="text-2xl">✨</span>
+                Daily Habits
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <HabitTracker habits={habitsData} />
+            </CardContent>
+          </Card>
         </div>
-      </main>
-    </div>
+
+        {/* Middle Row: Contribution Graph */}
+        <section className="fade-in-slow">
+          <ContributionGraph
+            data={contributionsData}
+            isRealData={contributionsData.length > 0}
+          />
+        </section>
+
+        {/* Bottom Row: Integrations */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 stagger">
+          <Card className="col-span-1 min-h-100 glass hover-lift fade-in">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2">
+                <span className="text-xl">✅</span>
+                Tasks
+                {tasksData.length > 0 && (
+                  <span className="ml-auto text-xs font-normal text-muted-foreground">
+                    {tasksData.length} tasks
+                  </span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TaskList tasks={tasksData} />
+            </CardContent>
+          </Card>
+
+          <Card className="col-span-1 min-h-100 glass hover-lift fade-in">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2">
+                <span className="text-xl">📅</span>
+                Calendar
+                {eventsData.length > 0 && (
+                  <span className="ml-auto text-xs font-normal text-muted-foreground">
+                    {eventsData.length} events
+                  </span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CalendarWidget events={eventsData} />
+            </CardContent>
+          </Card>
+
+          <Card className="col-span-1 min-h-100 overflow-hidden p-0 bg-black border-0 hover-lift fade-in">
+            {/* No header or padding for music widget to look immersive */}
+            <MusicWidget />
+          </Card>
+        </div>
+
+        {/* New Advanced Widgets Row */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 stagger">
+          <LiveClockWidget />
+          <div className="lg:col-span-2">
+            <QuickActionsWidget />
+          </div>
+          <GoalProgressWidget />
+        </div>
+
+        {/* Focus Sessions */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <FocusSessionsWidget />
+          <Card className="glass gradient-accent border-0">
+            <CardHeader>
+              <CardTitle className="text-white">Daily Insights</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-white">
+              <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
+                <span className="text-2xl">🎯</span>
+                <div>
+                  <p className="font-medium">Most Productive Hour</p>
+                  <p className="text-sm text-white/80">9:00 AM - 10:00 AM</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
+                <span className="text-2xl">⚡</span>
+                <div>
+                  <p className="font-medium">Focus Streak</p>
+                  <p className="text-sm text-white/80">5 days of deep work</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
+                <span className="text-2xl">🌟</span>
+                <div>
+                  <p className="font-medium">Top Habit</p>
+                  <p className="text-sm text-white/80">
+                    Meditation - 90% completion
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </DashboardShell>
   );
 }

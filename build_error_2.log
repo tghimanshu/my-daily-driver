@@ -1,0 +1,23 @@
+
+> my-daily-driver@0.1.0 build
+> next build
+
+Γû▓ Next.js 16.1.0 (Turbopack)
+- Environments: .env.local, .env
+
+  Creating an optimized production build ...
+Γ£ô Compiled successfully in 9.0s
+  Running TypeScript ...
+Failed to compile.
+
+./lib/prisma.ts:7:5
+Type error: Object literal may only specify known properties, and 'datasources' does not exist in type 'Subset<PrismaClientOptions, PrismaClientOptions>'.
+
+   5 |
+   6 | export const prisma = globalForPrisma.prisma || new PrismaClient({
+>  7 |     datasources: {
+     |     ^
+   8 |         db: {
+   9 |             url: process.env.DATABASE_URL || "file:./dev.db",
+  10 |         },
+Next.js build worker exited with code: 1 and signal: null

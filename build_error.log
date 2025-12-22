@@ -1,0 +1,23 @@
+
+> my-daily-driver@0.1.0 build
+> next build
+
+Γû▓ Next.js 16.1.0 (Turbopack)
+- Environments: .env.local, .env
+
+  Creating an optimized production build ...
+Γ£ô Compiled successfully in 10.4s
+  Running TypeScript ...
+Failed to compile.
+
+./app/actions/habits.ts:24:33
+Type error: Property 'habit' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+
+  22 |     // Let's stick to the schema: One Habit record per habit, updated 'lastCompletedAt'.
+  23 |
+> 24 |     const habits = await prisma.habit.findMany({
+     |                                 ^
+  25 |         where: { userId: session.user.id }
+  26 |     })
+  27 |
+Next.js build worker exited with code: 1 and signal: null
