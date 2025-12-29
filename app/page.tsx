@@ -1,14 +1,13 @@
 import { auth } from "@/auth";
-import { fetchDailyTasks } from "@/lib/api/todoist";
-import { fetchUpcomingEvents } from "@/lib/api/google-calendar";
-import { fetchGitHubActivity, fetchContributionData } from "@/lib/api/github";
-import { fetchWeather } from "@/lib/api/weather";
 import { fetchTodayHabits } from "@/app/actions/habits";
+import { fetchContributionData } from "@/lib/api/github";
+import { fetchWeather } from "@/lib/api/weather";
 import { calculateScore } from "@/lib/scorometer";
+import { generateDailyBriefing, getSmartGreeting } from "@/lib/daily-setup";
 
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { ContributionGraph } from "@/components/dashboard/ContributionGraph";
-import { MorningGreeting } from "@/components/dashboard/MorningGreeting";
+import { MorningBriefing } from "@/components/dashboard/MorningBriefing";
 import { WeatherWidget } from "@/components/dashboard/WeatherWidget";
 import { ProductivityChart } from "@/components/dashboard/ProductivityChart";
 import { HabitTracker } from "@/components/dashboard/HabitTracker";
@@ -24,34 +23,42 @@ import { FocusSessionsWidget } from "@/components/widgets/FocusSessionsWidget";
 export default async function Home() {
   const session = await auth();
 
-  // Fetch all data in parallel with proper error handling
-  const [tasks, events, weather, habits, contributions] =
-    await Promise.allSettled([
-      fetchDailyTasks(),
-      // @ts-ignore - AccessToken is added in session callback
-      fetchUpcomingEvents(session?.accessToken),
-      fetchWeather(),
-      fetchTodayHabits(),
-      fetchContributionData(),
-    ]);
+  // Fetch habits and contributions data
+  const [habitsResult, contributionsResult, weatherResult] = await Promise.allSettled([
+    fetchTodayHabits(),
+    fetchContributionData(),
+    fetchWeather(),
+  ]);
 
-  // Extract values with fallbacks
-  const tasksData = tasks.status === "fulfilled" ? tasks.value : [];
-  const eventsData = events.status === "fulfilled" ? events.value : [];
-  const weatherData = weather.status === "fulfilled" ? weather.value : null;
-  const habitsData = habits.status === "fulfilled" ? habits.value : [];
-  const contributionsData =
-    contributions.status === "fulfilled" ? contributions.value : [];
+  const habitsData = habitsResult.status === "fulfilled" ? habitsResult.value : [];
+  const contributionsData = contributionsResult.status === "fulfilled" ? contributionsResult.value : [];
+  const weather = weatherResult.status === "fulfilled" ? weatherResult.value : null;
+
+  // Generate comprehensive daily briefing (fetches all integrations)
+  const briefing = await generateDailyBriefing(
+    // @ts-ignore - AccessToken is added in session callback
+    session?.accessToken,
+    habitsData
+  );
+
+  // Generate smart greeting
+  const greeting = getSmartGreeting(briefing);
+
+  // For backwards compatibility, extract individual data
+  const tasksData = briefing.priorities.top3
+    .filter((p) => p.type === "task")
+    .map((p) => p.metadata);
+  const eventsData = briefing.priorities.top3
+    .filter((p) => p.type === "event")
+    .map((p) => p.metadata);
 
   const score = calculateScore(tasksData, eventsData, []);
 
   return (
     <DashboardShell>
       <div className="flex flex-col gap-8 pb-8">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <MorningGreeting />
-        </div>
+        {/* Morning Briefing - New comprehensive view */}
+        <MorningBriefing briefing={briefing} greeting={greeting} />
 
         {/* Top Row: Quick Glance Stats */}
         <div className="grid gap-4 md:grid-cols-4 stagger">

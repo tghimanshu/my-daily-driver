@@ -30,6 +30,7 @@ export type UserMinAggregateOutputType = {
   email: string | null
   emailVerified: Date | null
   image: string | null
+  timezone: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -40,6 +41,7 @@ export type UserMaxAggregateOutputType = {
   email: string | null
   emailVerified: Date | null
   image: string | null
+  timezone: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -50,6 +52,8 @@ export type UserCountAggregateOutputType = {
   email: number
   emailVerified: number
   image: number
+  timezone: number
+  preferences: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -62,6 +66,7 @@ export type UserMinAggregateInputType = {
   email?: true
   emailVerified?: true
   image?: true
+  timezone?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -72,6 +77,7 @@ export type UserMaxAggregateInputType = {
   email?: true
   emailVerified?: true
   image?: true
+  timezone?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -82,6 +88,8 @@ export type UserCountAggregateInputType = {
   email?: true
   emailVerified?: true
   image?: true
+  timezone?: true
+  preferences?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -165,6 +173,8 @@ export type UserGroupByOutputType = {
   email: string | null
   emailVerified: Date | null
   image: string | null
+  timezone: string
+  preferences: runtime.JsonValue | null
   createdAt: Date
   updatedAt: Date
   _count: UserCountAggregateOutputType | null
@@ -196,12 +206,18 @@ export type UserWhereInput = {
   email?: Prisma.StringNullableFilter<"User"> | string | null
   emailVerified?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   image?: Prisma.StringNullableFilter<"User"> | string | null
+  timezone?: Prisma.StringFilter<"User"> | string
+  preferences?: Prisma.JsonNullableFilter<"User">
   createdAt?: Prisma.DateTimeFilter<"User"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"User"> | Date | string
   accounts?: Prisma.AccountListRelationFilter
   sessions?: Prisma.SessionListRelationFilter
   Authenticator?: Prisma.AuthenticatorListRelationFilter
   habits?: Prisma.HabitListRelationFilter
+  dailyBriefings?: Prisma.DailyBriefingListRelationFilter
+  productivitySnapshots?: Prisma.ProductivitySnapshotListRelationFilter
+  energyPatterns?: Prisma.EnergyPatternListRelationFilter
+  integrationSyncs?: Prisma.IntegrationSyncListRelationFilter
 }
 
 export type UserOrderByWithRelationInput = {
@@ -210,12 +226,18 @@ export type UserOrderByWithRelationInput = {
   email?: Prisma.SortOrderInput | Prisma.SortOrder
   emailVerified?: Prisma.SortOrderInput | Prisma.SortOrder
   image?: Prisma.SortOrderInput | Prisma.SortOrder
+  timezone?: Prisma.SortOrder
+  preferences?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   accounts?: Prisma.AccountOrderByRelationAggregateInput
   sessions?: Prisma.SessionOrderByRelationAggregateInput
   Authenticator?: Prisma.AuthenticatorOrderByRelationAggregateInput
   habits?: Prisma.HabitOrderByRelationAggregateInput
+  dailyBriefings?: Prisma.DailyBriefingOrderByRelationAggregateInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotOrderByRelationAggregateInput
+  energyPatterns?: Prisma.EnergyPatternOrderByRelationAggregateInput
+  integrationSyncs?: Prisma.IntegrationSyncOrderByRelationAggregateInput
 }
 
 export type UserWhereUniqueInput = Prisma.AtLeast<{
@@ -227,12 +249,18 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   name?: Prisma.StringNullableFilter<"User"> | string | null
   emailVerified?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   image?: Prisma.StringNullableFilter<"User"> | string | null
+  timezone?: Prisma.StringFilter<"User"> | string
+  preferences?: Prisma.JsonNullableFilter<"User">
   createdAt?: Prisma.DateTimeFilter<"User"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"User"> | Date | string
   accounts?: Prisma.AccountListRelationFilter
   sessions?: Prisma.SessionListRelationFilter
   Authenticator?: Prisma.AuthenticatorListRelationFilter
   habits?: Prisma.HabitListRelationFilter
+  dailyBriefings?: Prisma.DailyBriefingListRelationFilter
+  productivitySnapshots?: Prisma.ProductivitySnapshotListRelationFilter
+  energyPatterns?: Prisma.EnergyPatternListRelationFilter
+  integrationSyncs?: Prisma.IntegrationSyncListRelationFilter
 }, "id" | "email">
 
 export type UserOrderByWithAggregationInput = {
@@ -241,6 +269,8 @@ export type UserOrderByWithAggregationInput = {
   email?: Prisma.SortOrderInput | Prisma.SortOrder
   emailVerified?: Prisma.SortOrderInput | Prisma.SortOrder
   image?: Prisma.SortOrderInput | Prisma.SortOrder
+  timezone?: Prisma.SortOrder
+  preferences?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.UserCountOrderByAggregateInput
@@ -257,6 +287,8 @@ export type UserScalarWhereWithAggregatesInput = {
   email?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
   emailVerified?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
   image?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
+  timezone?: Prisma.StringWithAggregatesFilter<"User"> | string
+  preferences?: Prisma.JsonNullableWithAggregatesFilter<"User">
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"User"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"User"> | Date | string
 }
@@ -267,12 +299,18 @@ export type UserCreateInput = {
   email?: string | null
   emailVerified?: Date | string | null
   image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   Authenticator?: Prisma.AuthenticatorCreateNestedManyWithoutUserInput
   habits?: Prisma.HabitCreateNestedManyWithoutUserInput
+  dailyBriefings?: Prisma.DailyBriefingCreateNestedManyWithoutUserInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotCreateNestedManyWithoutUserInput
+  energyPatterns?: Prisma.EnergyPatternCreateNestedManyWithoutUserInput
+  integrationSyncs?: Prisma.IntegrationSyncCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateInput = {
@@ -281,12 +319,18 @@ export type UserUncheckedCreateInput = {
   email?: string | null
   emailVerified?: Date | string | null
   image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   Authenticator?: Prisma.AuthenticatorUncheckedCreateNestedManyWithoutUserInput
   habits?: Prisma.HabitUncheckedCreateNestedManyWithoutUserInput
+  dailyBriefings?: Prisma.DailyBriefingUncheckedCreateNestedManyWithoutUserInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUncheckedCreateNestedManyWithoutUserInput
+  energyPatterns?: Prisma.EnergyPatternUncheckedCreateNestedManyWithoutUserInput
+  integrationSyncs?: Prisma.IntegrationSyncUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserUpdateInput = {
@@ -295,12 +339,18 @@ export type UserUpdateInput = {
   email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   Authenticator?: Prisma.AuthenticatorUpdateManyWithoutUserNestedInput
   habits?: Prisma.HabitUpdateManyWithoutUserNestedInput
+  dailyBriefings?: Prisma.DailyBriefingUpdateManyWithoutUserNestedInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUpdateManyWithoutUserNestedInput
+  energyPatterns?: Prisma.EnergyPatternUpdateManyWithoutUserNestedInput
+  integrationSyncs?: Prisma.IntegrationSyncUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateInput = {
@@ -309,12 +359,18 @@ export type UserUncheckedUpdateInput = {
   email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   Authenticator?: Prisma.AuthenticatorUncheckedUpdateManyWithoutUserNestedInput
   habits?: Prisma.HabitUncheckedUpdateManyWithoutUserNestedInput
+  dailyBriefings?: Prisma.DailyBriefingUncheckedUpdateManyWithoutUserNestedInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUncheckedUpdateManyWithoutUserNestedInput
+  energyPatterns?: Prisma.EnergyPatternUncheckedUpdateManyWithoutUserNestedInput
+  integrationSyncs?: Prisma.IntegrationSyncUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateManyInput = {
@@ -323,6 +379,8 @@ export type UserCreateManyInput = {
   email?: string | null
   emailVerified?: Date | string | null
   image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -333,6 +391,8 @@ export type UserUpdateManyMutationInput = {
   email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -343,6 +403,8 @@ export type UserUncheckedUpdateManyInput = {
   email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -353,6 +415,8 @@ export type UserCountOrderByAggregateInput = {
   email?: Prisma.SortOrder
   emailVerified?: Prisma.SortOrder
   image?: Prisma.SortOrder
+  timezone?: Prisma.SortOrder
+  preferences?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -363,6 +427,7 @@ export type UserMaxOrderByAggregateInput = {
   email?: Prisma.SortOrder
   emailVerified?: Prisma.SortOrder
   image?: Prisma.SortOrder
+  timezone?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -373,6 +438,7 @@ export type UserMinOrderByAggregateInput = {
   email?: Prisma.SortOrder
   emailVerified?: Prisma.SortOrder
   image?: Prisma.SortOrder
+  timezone?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -454,17 +520,79 @@ export type UserUpdateOneRequiredWithoutHabitsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutHabitsInput, Prisma.UserUpdateWithoutHabitsInput>, Prisma.UserUncheckedUpdateWithoutHabitsInput>
 }
 
+export type UserCreateNestedOneWithoutDailyBriefingsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutDailyBriefingsInput, Prisma.UserUncheckedCreateWithoutDailyBriefingsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutDailyBriefingsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutDailyBriefingsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutDailyBriefingsInput, Prisma.UserUncheckedCreateWithoutDailyBriefingsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutDailyBriefingsInput
+  upsert?: Prisma.UserUpsertWithoutDailyBriefingsInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutDailyBriefingsInput, Prisma.UserUpdateWithoutDailyBriefingsInput>, Prisma.UserUncheckedUpdateWithoutDailyBriefingsInput>
+}
+
+export type UserCreateNestedOneWithoutProductivitySnapshotsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutProductivitySnapshotsInput, Prisma.UserUncheckedCreateWithoutProductivitySnapshotsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutProductivitySnapshotsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutProductivitySnapshotsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutProductivitySnapshotsInput, Prisma.UserUncheckedCreateWithoutProductivitySnapshotsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutProductivitySnapshotsInput
+  upsert?: Prisma.UserUpsertWithoutProductivitySnapshotsInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutProductivitySnapshotsInput, Prisma.UserUpdateWithoutProductivitySnapshotsInput>, Prisma.UserUncheckedUpdateWithoutProductivitySnapshotsInput>
+}
+
+export type UserCreateNestedOneWithoutEnergyPatternsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutEnergyPatternsInput, Prisma.UserUncheckedCreateWithoutEnergyPatternsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutEnergyPatternsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutEnergyPatternsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutEnergyPatternsInput, Prisma.UserUncheckedCreateWithoutEnergyPatternsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutEnergyPatternsInput
+  upsert?: Prisma.UserUpsertWithoutEnergyPatternsInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutEnergyPatternsInput, Prisma.UserUpdateWithoutEnergyPatternsInput>, Prisma.UserUncheckedUpdateWithoutEnergyPatternsInput>
+}
+
+export type UserCreateNestedOneWithoutIntegrationSyncsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutIntegrationSyncsInput, Prisma.UserUncheckedCreateWithoutIntegrationSyncsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutIntegrationSyncsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutIntegrationSyncsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutIntegrationSyncsInput, Prisma.UserUncheckedCreateWithoutIntegrationSyncsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutIntegrationSyncsInput
+  upsert?: Prisma.UserUpsertWithoutIntegrationSyncsInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutIntegrationSyncsInput, Prisma.UserUpdateWithoutIntegrationSyncsInput>, Prisma.UserUncheckedUpdateWithoutIntegrationSyncsInput>
+}
+
 export type UserCreateWithoutAccountsInput = {
   id?: string
   name?: string | null
   email?: string | null
   emailVerified?: Date | string | null
   image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   Authenticator?: Prisma.AuthenticatorCreateNestedManyWithoutUserInput
   habits?: Prisma.HabitCreateNestedManyWithoutUserInput
+  dailyBriefings?: Prisma.DailyBriefingCreateNestedManyWithoutUserInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotCreateNestedManyWithoutUserInput
+  energyPatterns?: Prisma.EnergyPatternCreateNestedManyWithoutUserInput
+  integrationSyncs?: Prisma.IntegrationSyncCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutAccountsInput = {
@@ -473,11 +601,17 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   email?: string | null
   emailVerified?: Date | string | null
   image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   Authenticator?: Prisma.AuthenticatorUncheckedCreateNestedManyWithoutUserInput
   habits?: Prisma.HabitUncheckedCreateNestedManyWithoutUserInput
+  dailyBriefings?: Prisma.DailyBriefingUncheckedCreateNestedManyWithoutUserInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUncheckedCreateNestedManyWithoutUserInput
+  energyPatterns?: Prisma.EnergyPatternUncheckedCreateNestedManyWithoutUserInput
+  integrationSyncs?: Prisma.IntegrationSyncUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutAccountsInput = {
@@ -502,11 +636,17 @@ export type UserUpdateWithoutAccountsInput = {
   email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   Authenticator?: Prisma.AuthenticatorUpdateManyWithoutUserNestedInput
   habits?: Prisma.HabitUpdateManyWithoutUserNestedInput
+  dailyBriefings?: Prisma.DailyBriefingUpdateManyWithoutUserNestedInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUpdateManyWithoutUserNestedInput
+  energyPatterns?: Prisma.EnergyPatternUpdateManyWithoutUserNestedInput
+  integrationSyncs?: Prisma.IntegrationSyncUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAccountsInput = {
@@ -515,11 +655,17 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   Authenticator?: Prisma.AuthenticatorUncheckedUpdateManyWithoutUserNestedInput
   habits?: Prisma.HabitUncheckedUpdateManyWithoutUserNestedInput
+  dailyBriefings?: Prisma.DailyBriefingUncheckedUpdateManyWithoutUserNestedInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUncheckedUpdateManyWithoutUserNestedInput
+  energyPatterns?: Prisma.EnergyPatternUncheckedUpdateManyWithoutUserNestedInput
+  integrationSyncs?: Prisma.IntegrationSyncUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutSessionsInput = {
@@ -528,11 +674,17 @@ export type UserCreateWithoutSessionsInput = {
   email?: string | null
   emailVerified?: Date | string | null
   image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   Authenticator?: Prisma.AuthenticatorCreateNestedManyWithoutUserInput
   habits?: Prisma.HabitCreateNestedManyWithoutUserInput
+  dailyBriefings?: Prisma.DailyBriefingCreateNestedManyWithoutUserInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotCreateNestedManyWithoutUserInput
+  energyPatterns?: Prisma.EnergyPatternCreateNestedManyWithoutUserInput
+  integrationSyncs?: Prisma.IntegrationSyncCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutSessionsInput = {
@@ -541,11 +693,17 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   email?: string | null
   emailVerified?: Date | string | null
   image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   Authenticator?: Prisma.AuthenticatorUncheckedCreateNestedManyWithoutUserInput
   habits?: Prisma.HabitUncheckedCreateNestedManyWithoutUserInput
+  dailyBriefings?: Prisma.DailyBriefingUncheckedCreateNestedManyWithoutUserInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUncheckedCreateNestedManyWithoutUserInput
+  energyPatterns?: Prisma.EnergyPatternUncheckedCreateNestedManyWithoutUserInput
+  integrationSyncs?: Prisma.IntegrationSyncUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutSessionsInput = {
@@ -570,11 +728,17 @@ export type UserUpdateWithoutSessionsInput = {
   email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   Authenticator?: Prisma.AuthenticatorUpdateManyWithoutUserNestedInput
   habits?: Prisma.HabitUpdateManyWithoutUserNestedInput
+  dailyBriefings?: Prisma.DailyBriefingUpdateManyWithoutUserNestedInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUpdateManyWithoutUserNestedInput
+  energyPatterns?: Prisma.EnergyPatternUpdateManyWithoutUserNestedInput
+  integrationSyncs?: Prisma.IntegrationSyncUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSessionsInput = {
@@ -583,11 +747,17 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   Authenticator?: Prisma.AuthenticatorUncheckedUpdateManyWithoutUserNestedInput
   habits?: Prisma.HabitUncheckedUpdateManyWithoutUserNestedInput
+  dailyBriefings?: Prisma.DailyBriefingUncheckedUpdateManyWithoutUserNestedInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUncheckedUpdateManyWithoutUserNestedInput
+  energyPatterns?: Prisma.EnergyPatternUncheckedUpdateManyWithoutUserNestedInput
+  integrationSyncs?: Prisma.IntegrationSyncUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutAuthenticatorInput = {
@@ -596,11 +766,17 @@ export type UserCreateWithoutAuthenticatorInput = {
   email?: string | null
   emailVerified?: Date | string | null
   image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   habits?: Prisma.HabitCreateNestedManyWithoutUserInput
+  dailyBriefings?: Prisma.DailyBriefingCreateNestedManyWithoutUserInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotCreateNestedManyWithoutUserInput
+  energyPatterns?: Prisma.EnergyPatternCreateNestedManyWithoutUserInput
+  integrationSyncs?: Prisma.IntegrationSyncCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutAuthenticatorInput = {
@@ -609,11 +785,17 @@ export type UserUncheckedCreateWithoutAuthenticatorInput = {
   email?: string | null
   emailVerified?: Date | string | null
   image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   habits?: Prisma.HabitUncheckedCreateNestedManyWithoutUserInput
+  dailyBriefings?: Prisma.DailyBriefingUncheckedCreateNestedManyWithoutUserInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUncheckedCreateNestedManyWithoutUserInput
+  energyPatterns?: Prisma.EnergyPatternUncheckedCreateNestedManyWithoutUserInput
+  integrationSyncs?: Prisma.IntegrationSyncUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutAuthenticatorInput = {
@@ -638,11 +820,17 @@ export type UserUpdateWithoutAuthenticatorInput = {
   email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   habits?: Prisma.HabitUpdateManyWithoutUserNestedInput
+  dailyBriefings?: Prisma.DailyBriefingUpdateManyWithoutUserNestedInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUpdateManyWithoutUserNestedInput
+  energyPatterns?: Prisma.EnergyPatternUpdateManyWithoutUserNestedInput
+  integrationSyncs?: Prisma.IntegrationSyncUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAuthenticatorInput = {
@@ -651,11 +839,17 @@ export type UserUncheckedUpdateWithoutAuthenticatorInput = {
   email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   habits?: Prisma.HabitUncheckedUpdateManyWithoutUserNestedInput
+  dailyBriefings?: Prisma.DailyBriefingUncheckedUpdateManyWithoutUserNestedInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUncheckedUpdateManyWithoutUserNestedInput
+  energyPatterns?: Prisma.EnergyPatternUncheckedUpdateManyWithoutUserNestedInput
+  integrationSyncs?: Prisma.IntegrationSyncUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutHabitsInput = {
@@ -664,11 +858,17 @@ export type UserCreateWithoutHabitsInput = {
   email?: string | null
   emailVerified?: Date | string | null
   image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   Authenticator?: Prisma.AuthenticatorCreateNestedManyWithoutUserInput
+  dailyBriefings?: Prisma.DailyBriefingCreateNestedManyWithoutUserInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotCreateNestedManyWithoutUserInput
+  energyPatterns?: Prisma.EnergyPatternCreateNestedManyWithoutUserInput
+  integrationSyncs?: Prisma.IntegrationSyncCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutHabitsInput = {
@@ -677,11 +877,17 @@ export type UserUncheckedCreateWithoutHabitsInput = {
   email?: string | null
   emailVerified?: Date | string | null
   image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   Authenticator?: Prisma.AuthenticatorUncheckedCreateNestedManyWithoutUserInput
+  dailyBriefings?: Prisma.DailyBriefingUncheckedCreateNestedManyWithoutUserInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUncheckedCreateNestedManyWithoutUserInput
+  energyPatterns?: Prisma.EnergyPatternUncheckedCreateNestedManyWithoutUserInput
+  integrationSyncs?: Prisma.IntegrationSyncUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutHabitsInput = {
@@ -706,11 +912,17 @@ export type UserUpdateWithoutHabitsInput = {
   email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   Authenticator?: Prisma.AuthenticatorUpdateManyWithoutUserNestedInput
+  dailyBriefings?: Prisma.DailyBriefingUpdateManyWithoutUserNestedInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUpdateManyWithoutUserNestedInput
+  energyPatterns?: Prisma.EnergyPatternUpdateManyWithoutUserNestedInput
+  integrationSyncs?: Prisma.IntegrationSyncUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutHabitsInput = {
@@ -719,11 +931,385 @@ export type UserUncheckedUpdateWithoutHabitsInput = {
   email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   Authenticator?: Prisma.AuthenticatorUncheckedUpdateManyWithoutUserNestedInput
+  dailyBriefings?: Prisma.DailyBriefingUncheckedUpdateManyWithoutUserNestedInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUncheckedUpdateManyWithoutUserNestedInput
+  energyPatterns?: Prisma.EnergyPatternUncheckedUpdateManyWithoutUserNestedInput
+  integrationSyncs?: Prisma.IntegrationSyncUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutDailyBriefingsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  Authenticator?: Prisma.AuthenticatorCreateNestedManyWithoutUserInput
+  habits?: Prisma.HabitCreateNestedManyWithoutUserInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotCreateNestedManyWithoutUserInput
+  energyPatterns?: Prisma.EnergyPatternCreateNestedManyWithoutUserInput
+  integrationSyncs?: Prisma.IntegrationSyncCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutDailyBriefingsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  Authenticator?: Prisma.AuthenticatorUncheckedCreateNestedManyWithoutUserInput
+  habits?: Prisma.HabitUncheckedCreateNestedManyWithoutUserInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUncheckedCreateNestedManyWithoutUserInput
+  energyPatterns?: Prisma.EnergyPatternUncheckedCreateNestedManyWithoutUserInput
+  integrationSyncs?: Prisma.IntegrationSyncUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutDailyBriefingsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutDailyBriefingsInput, Prisma.UserUncheckedCreateWithoutDailyBriefingsInput>
+}
+
+export type UserUpsertWithoutDailyBriefingsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutDailyBriefingsInput, Prisma.UserUncheckedUpdateWithoutDailyBriefingsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutDailyBriefingsInput, Prisma.UserUncheckedCreateWithoutDailyBriefingsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutDailyBriefingsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutDailyBriefingsInput, Prisma.UserUncheckedUpdateWithoutDailyBriefingsInput>
+}
+
+export type UserUpdateWithoutDailyBriefingsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  Authenticator?: Prisma.AuthenticatorUpdateManyWithoutUserNestedInput
+  habits?: Prisma.HabitUpdateManyWithoutUserNestedInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUpdateManyWithoutUserNestedInput
+  energyPatterns?: Prisma.EnergyPatternUpdateManyWithoutUserNestedInput
+  integrationSyncs?: Prisma.IntegrationSyncUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutDailyBriefingsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  Authenticator?: Prisma.AuthenticatorUncheckedUpdateManyWithoutUserNestedInput
+  habits?: Prisma.HabitUncheckedUpdateManyWithoutUserNestedInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUncheckedUpdateManyWithoutUserNestedInput
+  energyPatterns?: Prisma.EnergyPatternUncheckedUpdateManyWithoutUserNestedInput
+  integrationSyncs?: Prisma.IntegrationSyncUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutProductivitySnapshotsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  Authenticator?: Prisma.AuthenticatorCreateNestedManyWithoutUserInput
+  habits?: Prisma.HabitCreateNestedManyWithoutUserInput
+  dailyBriefings?: Prisma.DailyBriefingCreateNestedManyWithoutUserInput
+  energyPatterns?: Prisma.EnergyPatternCreateNestedManyWithoutUserInput
+  integrationSyncs?: Prisma.IntegrationSyncCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutProductivitySnapshotsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  Authenticator?: Prisma.AuthenticatorUncheckedCreateNestedManyWithoutUserInput
+  habits?: Prisma.HabitUncheckedCreateNestedManyWithoutUserInput
+  dailyBriefings?: Prisma.DailyBriefingUncheckedCreateNestedManyWithoutUserInput
+  energyPatterns?: Prisma.EnergyPatternUncheckedCreateNestedManyWithoutUserInput
+  integrationSyncs?: Prisma.IntegrationSyncUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutProductivitySnapshotsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutProductivitySnapshotsInput, Prisma.UserUncheckedCreateWithoutProductivitySnapshotsInput>
+}
+
+export type UserUpsertWithoutProductivitySnapshotsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutProductivitySnapshotsInput, Prisma.UserUncheckedUpdateWithoutProductivitySnapshotsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutProductivitySnapshotsInput, Prisma.UserUncheckedCreateWithoutProductivitySnapshotsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutProductivitySnapshotsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutProductivitySnapshotsInput, Prisma.UserUncheckedUpdateWithoutProductivitySnapshotsInput>
+}
+
+export type UserUpdateWithoutProductivitySnapshotsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  Authenticator?: Prisma.AuthenticatorUpdateManyWithoutUserNestedInput
+  habits?: Prisma.HabitUpdateManyWithoutUserNestedInput
+  dailyBriefings?: Prisma.DailyBriefingUpdateManyWithoutUserNestedInput
+  energyPatterns?: Prisma.EnergyPatternUpdateManyWithoutUserNestedInput
+  integrationSyncs?: Prisma.IntegrationSyncUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutProductivitySnapshotsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  Authenticator?: Prisma.AuthenticatorUncheckedUpdateManyWithoutUserNestedInput
+  habits?: Prisma.HabitUncheckedUpdateManyWithoutUserNestedInput
+  dailyBriefings?: Prisma.DailyBriefingUncheckedUpdateManyWithoutUserNestedInput
+  energyPatterns?: Prisma.EnergyPatternUncheckedUpdateManyWithoutUserNestedInput
+  integrationSyncs?: Prisma.IntegrationSyncUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutEnergyPatternsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  Authenticator?: Prisma.AuthenticatorCreateNestedManyWithoutUserInput
+  habits?: Prisma.HabitCreateNestedManyWithoutUserInput
+  dailyBriefings?: Prisma.DailyBriefingCreateNestedManyWithoutUserInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotCreateNestedManyWithoutUserInput
+  integrationSyncs?: Prisma.IntegrationSyncCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutEnergyPatternsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  Authenticator?: Prisma.AuthenticatorUncheckedCreateNestedManyWithoutUserInput
+  habits?: Prisma.HabitUncheckedCreateNestedManyWithoutUserInput
+  dailyBriefings?: Prisma.DailyBriefingUncheckedCreateNestedManyWithoutUserInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUncheckedCreateNestedManyWithoutUserInput
+  integrationSyncs?: Prisma.IntegrationSyncUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutEnergyPatternsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutEnergyPatternsInput, Prisma.UserUncheckedCreateWithoutEnergyPatternsInput>
+}
+
+export type UserUpsertWithoutEnergyPatternsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutEnergyPatternsInput, Prisma.UserUncheckedUpdateWithoutEnergyPatternsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutEnergyPatternsInput, Prisma.UserUncheckedCreateWithoutEnergyPatternsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutEnergyPatternsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutEnergyPatternsInput, Prisma.UserUncheckedUpdateWithoutEnergyPatternsInput>
+}
+
+export type UserUpdateWithoutEnergyPatternsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  Authenticator?: Prisma.AuthenticatorUpdateManyWithoutUserNestedInput
+  habits?: Prisma.HabitUpdateManyWithoutUserNestedInput
+  dailyBriefings?: Prisma.DailyBriefingUpdateManyWithoutUserNestedInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUpdateManyWithoutUserNestedInput
+  integrationSyncs?: Prisma.IntegrationSyncUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutEnergyPatternsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  Authenticator?: Prisma.AuthenticatorUncheckedUpdateManyWithoutUserNestedInput
+  habits?: Prisma.HabitUncheckedUpdateManyWithoutUserNestedInput
+  dailyBriefings?: Prisma.DailyBriefingUncheckedUpdateManyWithoutUserNestedInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUncheckedUpdateManyWithoutUserNestedInput
+  integrationSyncs?: Prisma.IntegrationSyncUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutIntegrationSyncsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  Authenticator?: Prisma.AuthenticatorCreateNestedManyWithoutUserInput
+  habits?: Prisma.HabitCreateNestedManyWithoutUserInput
+  dailyBriefings?: Prisma.DailyBriefingCreateNestedManyWithoutUserInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotCreateNestedManyWithoutUserInput
+  energyPatterns?: Prisma.EnergyPatternCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutIntegrationSyncsInput = {
+  id?: string
+  name?: string | null
+  email?: string | null
+  emailVerified?: Date | string | null
+  image?: string | null
+  timezone?: string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  Authenticator?: Prisma.AuthenticatorUncheckedCreateNestedManyWithoutUserInput
+  habits?: Prisma.HabitUncheckedCreateNestedManyWithoutUserInput
+  dailyBriefings?: Prisma.DailyBriefingUncheckedCreateNestedManyWithoutUserInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUncheckedCreateNestedManyWithoutUserInput
+  energyPatterns?: Prisma.EnergyPatternUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutIntegrationSyncsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutIntegrationSyncsInput, Prisma.UserUncheckedCreateWithoutIntegrationSyncsInput>
+}
+
+export type UserUpsertWithoutIntegrationSyncsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutIntegrationSyncsInput, Prisma.UserUncheckedUpdateWithoutIntegrationSyncsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutIntegrationSyncsInput, Prisma.UserUncheckedCreateWithoutIntegrationSyncsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutIntegrationSyncsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutIntegrationSyncsInput, Prisma.UserUncheckedUpdateWithoutIntegrationSyncsInput>
+}
+
+export type UserUpdateWithoutIntegrationSyncsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  Authenticator?: Prisma.AuthenticatorUpdateManyWithoutUserNestedInput
+  habits?: Prisma.HabitUpdateManyWithoutUserNestedInput
+  dailyBriefings?: Prisma.DailyBriefingUpdateManyWithoutUserNestedInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUpdateManyWithoutUserNestedInput
+  energyPatterns?: Prisma.EnergyPatternUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutIntegrationSyncsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  preferences?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  Authenticator?: Prisma.AuthenticatorUncheckedUpdateManyWithoutUserNestedInput
+  habits?: Prisma.HabitUncheckedUpdateManyWithoutUserNestedInput
+  dailyBriefings?: Prisma.DailyBriefingUncheckedUpdateManyWithoutUserNestedInput
+  productivitySnapshots?: Prisma.ProductivitySnapshotUncheckedUpdateManyWithoutUserNestedInput
+  energyPatterns?: Prisma.EnergyPatternUncheckedUpdateManyWithoutUserNestedInput
 }
 
 
@@ -736,6 +1322,10 @@ export type UserCountOutputType = {
   sessions: number
   Authenticator: number
   habits: number
+  dailyBriefings: number
+  productivitySnapshots: number
+  energyPatterns: number
+  integrationSyncs: number
 }
 
 export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -743,6 +1333,10 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   sessions?: boolean | UserCountOutputTypeCountSessionsArgs
   Authenticator?: boolean | UserCountOutputTypeCountAuthenticatorArgs
   habits?: boolean | UserCountOutputTypeCountHabitsArgs
+  dailyBriefings?: boolean | UserCountOutputTypeCountDailyBriefingsArgs
+  productivitySnapshots?: boolean | UserCountOutputTypeCountProductivitySnapshotsArgs
+  energyPatterns?: boolean | UserCountOutputTypeCountEnergyPatternsArgs
+  integrationSyncs?: boolean | UserCountOutputTypeCountIntegrationSyncsArgs
 }
 
 /**
@@ -783,6 +1377,34 @@ export type UserCountOutputTypeCountHabitsArgs<ExtArgs extends runtime.Types.Ext
   where?: Prisma.HabitWhereInput
 }
 
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountDailyBriefingsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.DailyBriefingWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountProductivitySnapshotsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ProductivitySnapshotWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountEnergyPatternsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.EnergyPatternWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountIntegrationSyncsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.IntegrationSyncWhereInput
+}
+
 
 export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -790,12 +1412,18 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   email?: boolean
   emailVerified?: boolean
   image?: boolean
+  timezone?: boolean
+  preferences?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   accounts?: boolean | Prisma.User$accountsArgs<ExtArgs>
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
   Authenticator?: boolean | Prisma.User$AuthenticatorArgs<ExtArgs>
   habits?: boolean | Prisma.User$habitsArgs<ExtArgs>
+  dailyBriefings?: boolean | Prisma.User$dailyBriefingsArgs<ExtArgs>
+  productivitySnapshots?: boolean | Prisma.User$productivitySnapshotsArgs<ExtArgs>
+  energyPatterns?: boolean | Prisma.User$energyPatternsArgs<ExtArgs>
+  integrationSyncs?: boolean | Prisma.User$integrationSyncsArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["user"]>
 
@@ -805,6 +1433,8 @@ export type UserSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   email?: boolean
   emailVerified?: boolean
   image?: boolean
+  timezone?: boolean
+  preferences?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }, ExtArgs["result"]["user"]>
@@ -815,6 +1445,8 @@ export type UserSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   email?: boolean
   emailVerified?: boolean
   image?: boolean
+  timezone?: boolean
+  preferences?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }, ExtArgs["result"]["user"]>
@@ -825,16 +1457,22 @@ export type UserSelectScalar = {
   email?: boolean
   emailVerified?: boolean
   image?: boolean
+  timezone?: boolean
+  preferences?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "email" | "emailVerified" | "image" | "createdAt" | "updatedAt", ExtArgs["result"]["user"]>
+export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "email" | "emailVerified" | "image" | "timezone" | "preferences" | "createdAt" | "updatedAt", ExtArgs["result"]["user"]>
 export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   accounts?: boolean | Prisma.User$accountsArgs<ExtArgs>
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
   Authenticator?: boolean | Prisma.User$AuthenticatorArgs<ExtArgs>
   habits?: boolean | Prisma.User$habitsArgs<ExtArgs>
+  dailyBriefings?: boolean | Prisma.User$dailyBriefingsArgs<ExtArgs>
+  productivitySnapshots?: boolean | Prisma.User$productivitySnapshotsArgs<ExtArgs>
+  energyPatterns?: boolean | Prisma.User$energyPatternsArgs<ExtArgs>
+  integrationSyncs?: boolean | Prisma.User$integrationSyncsArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type UserIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -847,6 +1485,10 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     sessions: Prisma.$SessionPayload<ExtArgs>[]
     Authenticator: Prisma.$AuthenticatorPayload<ExtArgs>[]
     habits: Prisma.$HabitPayload<ExtArgs>[]
+    dailyBriefings: Prisma.$DailyBriefingPayload<ExtArgs>[]
+    productivitySnapshots: Prisma.$ProductivitySnapshotPayload<ExtArgs>[]
+    energyPatterns: Prisma.$EnergyPatternPayload<ExtArgs>[]
+    integrationSyncs: Prisma.$IntegrationSyncPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -854,6 +1496,8 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     email: string | null
     emailVerified: Date | null
     image: string | null
+    timezone: string
+    preferences: runtime.JsonValue | null
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["user"]>
@@ -1254,6 +1898,10 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   sessions<T extends Prisma.User$sessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$sessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   Authenticator<T extends Prisma.User$AuthenticatorArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$AuthenticatorArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AuthenticatorPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   habits<T extends Prisma.User$habitsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$habitsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$HabitPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  dailyBriefings<T extends Prisma.User$dailyBriefingsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$dailyBriefingsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$DailyBriefingPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  productivitySnapshots<T extends Prisma.User$productivitySnapshotsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$productivitySnapshotsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProductivitySnapshotPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  energyPatterns<T extends Prisma.User$energyPatternsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$energyPatternsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$EnergyPatternPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  integrationSyncs<T extends Prisma.User$integrationSyncsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$integrationSyncsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$IntegrationSyncPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1288,6 +1936,8 @@ export interface UserFieldRefs {
   readonly email: Prisma.FieldRef<"User", 'String'>
   readonly emailVerified: Prisma.FieldRef<"User", 'DateTime'>
   readonly image: Prisma.FieldRef<"User", 'String'>
+  readonly timezone: Prisma.FieldRef<"User", 'String'>
+  readonly preferences: Prisma.FieldRef<"User", 'Json'>
   readonly createdAt: Prisma.FieldRef<"User", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"User", 'DateTime'>
 }
@@ -1771,6 +2421,102 @@ export type User$habitsArgs<ExtArgs extends runtime.Types.Extensions.InternalArg
   take?: number
   skip?: number
   distinct?: Prisma.HabitScalarFieldEnum | Prisma.HabitScalarFieldEnum[]
+}
+
+/**
+ * User.dailyBriefings
+ */
+export type User$dailyBriefingsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the DailyBriefing
+   */
+  select?: Prisma.DailyBriefingSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the DailyBriefing
+   */
+  omit?: Prisma.DailyBriefingOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.DailyBriefingInclude<ExtArgs> | null
+  where?: Prisma.DailyBriefingWhereInput
+  orderBy?: Prisma.DailyBriefingOrderByWithRelationInput | Prisma.DailyBriefingOrderByWithRelationInput[]
+  cursor?: Prisma.DailyBriefingWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.DailyBriefingScalarFieldEnum | Prisma.DailyBriefingScalarFieldEnum[]
+}
+
+/**
+ * User.productivitySnapshots
+ */
+export type User$productivitySnapshotsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ProductivitySnapshot
+   */
+  select?: Prisma.ProductivitySnapshotSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ProductivitySnapshot
+   */
+  omit?: Prisma.ProductivitySnapshotOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ProductivitySnapshotInclude<ExtArgs> | null
+  where?: Prisma.ProductivitySnapshotWhereInput
+  orderBy?: Prisma.ProductivitySnapshotOrderByWithRelationInput | Prisma.ProductivitySnapshotOrderByWithRelationInput[]
+  cursor?: Prisma.ProductivitySnapshotWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ProductivitySnapshotScalarFieldEnum | Prisma.ProductivitySnapshotScalarFieldEnum[]
+}
+
+/**
+ * User.energyPatterns
+ */
+export type User$energyPatternsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the EnergyPattern
+   */
+  select?: Prisma.EnergyPatternSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the EnergyPattern
+   */
+  omit?: Prisma.EnergyPatternOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.EnergyPatternInclude<ExtArgs> | null
+  where?: Prisma.EnergyPatternWhereInput
+  orderBy?: Prisma.EnergyPatternOrderByWithRelationInput | Prisma.EnergyPatternOrderByWithRelationInput[]
+  cursor?: Prisma.EnergyPatternWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.EnergyPatternScalarFieldEnum | Prisma.EnergyPatternScalarFieldEnum[]
+}
+
+/**
+ * User.integrationSyncs
+ */
+export type User$integrationSyncsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the IntegrationSync
+   */
+  select?: Prisma.IntegrationSyncSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the IntegrationSync
+   */
+  omit?: Prisma.IntegrationSyncOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.IntegrationSyncInclude<ExtArgs> | null
+  where?: Prisma.IntegrationSyncWhereInput
+  orderBy?: Prisma.IntegrationSyncOrderByWithRelationInput | Prisma.IntegrationSyncOrderByWithRelationInput[]
+  cursor?: Prisma.IntegrationSyncWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.IntegrationSyncScalarFieldEnum | Prisma.IntegrationSyncScalarFieldEnum[]
 }
 
 /**

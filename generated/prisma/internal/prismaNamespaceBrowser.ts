@@ -56,7 +56,11 @@ export const ModelName = {
   Session: 'Session',
   VerificationToken: 'VerificationToken',
   Authenticator: 'Authenticator',
-  Habit: 'Habit'
+  Habit: 'Habit',
+  DailyBriefing: 'DailyBriefing',
+  ProductivitySnapshot: 'ProductivitySnapshot',
+  EnergyPattern: 'EnergyPattern',
+  IntegrationSync: 'IntegrationSync'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -81,6 +85,8 @@ export const UserScalarFieldEnum = {
   email: 'email',
   emailVerified: 'emailVerified',
   image: 'image',
+  timezone: 'timezone',
+  preferences: 'preferences',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -148,11 +154,73 @@ export const HabitScalarFieldEnum = {
   name: 'name',
   lastCompletedAt: 'lastCompletedAt',
   userId: 'userId',
+  streak: 'streak',
+  category: 'category',
+  timeOfDay: 'timeOfDay',
+  energyLevel: 'energyLevel',
+  priority: 'priority',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
 export type HabitScalarFieldEnum = (typeof HabitScalarFieldEnum)[keyof typeof HabitScalarFieldEnum]
+
+
+export const DailyBriefingScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  date: 'date',
+  briefing: 'briefing',
+  priorities: 'priorities',
+  insights: 'insights',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type DailyBriefingScalarFieldEnum = (typeof DailyBriefingScalarFieldEnum)[keyof typeof DailyBriefingScalarFieldEnum]
+
+
+export const ProductivitySnapshotScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  date: 'date',
+  tasksCompleted: 'tasksCompleted',
+  focusMinutes: 'focusMinutes',
+  habitsCompleted: 'habitsCompleted',
+  githubCommits: 'githubCommits',
+  meetingMinutes: 'meetingMinutes',
+  productivityScore: 'productivityScore',
+  createdAt: 'createdAt'
+} as const
+
+export type ProductivitySnapshotScalarFieldEnum = (typeof ProductivitySnapshotScalarFieldEnum)[keyof typeof ProductivitySnapshotScalarFieldEnum]
+
+
+export const EnergyPatternScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  hourOfDay: 'hourOfDay',
+  dayOfWeek: 'dayOfWeek',
+  energyScore: 'energyScore',
+  sampleSize: 'sampleSize',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type EnergyPatternScalarFieldEnum = (typeof EnergyPatternScalarFieldEnum)[keyof typeof EnergyPatternScalarFieldEnum]
+
+
+export const IntegrationSyncScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  integration: 'integration',
+  lastSyncAt: 'lastSyncAt',
+  status: 'status',
+  errorMessage: 'errorMessage',
+  updatedAt: 'updatedAt'
+} as const
+
+export type IntegrationSyncScalarFieldEnum = (typeof IntegrationSyncScalarFieldEnum)[keyof typeof IntegrationSyncScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -163,12 +231,36 @@ export const SortOrder = {
 export type SortOrder = (typeof SortOrder)[keyof typeof SortOrder]
 
 
+export const NullableJsonNullValueInput = {
+  DbNull: 'DbNull',
+  JsonNull: 'JsonNull'
+} as const
+
+export type NullableJsonNullValueInput = (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
+
+
+export const JsonNullValueInput = {
+  JsonNull: 'JsonNull'
+} as const
+
+export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
+
+
 export const QueryMode = {
   default: 'default',
   insensitive: 'insensitive'
 } as const
 
 export type QueryMode = (typeof QueryMode)[keyof typeof QueryMode]
+
+
+export const JsonNullValueFilter = {
+  DbNull: 'DbNull',
+  JsonNull: 'JsonNull',
+  AnyNull: 'AnyNull'
+} as const
+
+export type JsonNullValueFilter = (typeof JsonNullValueFilter)[keyof typeof JsonNullValueFilter]
 
 
 export const NullsOrder = {

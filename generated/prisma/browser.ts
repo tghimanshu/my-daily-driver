@@ -47,3 +47,23 @@ export type Authenticator = Prisma.AuthenticatorModel
  * 
  */
 export type Habit = Prisma.HabitModel
+/**
+ * Model DailyBriefing
+ * 
+ */
+export type DailyBriefing = Prisma.DailyBriefingModel
+/**
+ * Model ProductivitySnapshot
+ * 
+ */
+export type ProductivitySnapshot = Prisma.ProductivitySnapshotModel
+/**
+ * Model EnergyPattern
+ * 
+ */
+export type EnergyPattern = Prisma.EnergyPatternModel
+/**
+ * Model IntegrationSync
+ * 
+ */
+export type IntegrationSync = Prisma.IntegrationSyncModel

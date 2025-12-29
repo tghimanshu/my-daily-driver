@@ -20,8 +20,20 @@ export type HabitModel = runtime.Types.Result.DefaultSelection<Prisma.$HabitPayl
 
 export type AggregateHabit = {
   _count: HabitCountAggregateOutputType | null
+  _avg: HabitAvgAggregateOutputType | null
+  _sum: HabitSumAggregateOutputType | null
   _min: HabitMinAggregateOutputType | null
   _max: HabitMaxAggregateOutputType | null
+}
+
+export type HabitAvgAggregateOutputType = {
+  streak: number | null
+  priority: number | null
+}
+
+export type HabitSumAggregateOutputType = {
+  streak: number | null
+  priority: number | null
 }
 
 export type HabitMinAggregateOutputType = {
@@ -29,6 +41,11 @@ export type HabitMinAggregateOutputType = {
   name: string | null
   lastCompletedAt: Date | null
   userId: string | null
+  streak: number | null
+  category: string | null
+  timeOfDay: string | null
+  energyLevel: string | null
+  priority: number | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -38,6 +55,11 @@ export type HabitMaxAggregateOutputType = {
   name: string | null
   lastCompletedAt: Date | null
   userId: string | null
+  streak: number | null
+  category: string | null
+  timeOfDay: string | null
+  energyLevel: string | null
+  priority: number | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -47,17 +69,37 @@ export type HabitCountAggregateOutputType = {
   name: number
   lastCompletedAt: number
   userId: number
+  streak: number
+  category: number
+  timeOfDay: number
+  energyLevel: number
+  priority: number
   createdAt: number
   updatedAt: number
   _all: number
 }
 
 
+export type HabitAvgAggregateInputType = {
+  streak?: true
+  priority?: true
+}
+
+export type HabitSumAggregateInputType = {
+  streak?: true
+  priority?: true
+}
+
 export type HabitMinAggregateInputType = {
   id?: true
   name?: true
   lastCompletedAt?: true
   userId?: true
+  streak?: true
+  category?: true
+  timeOfDay?: true
+  energyLevel?: true
+  priority?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -67,6 +109,11 @@ export type HabitMaxAggregateInputType = {
   name?: true
   lastCompletedAt?: true
   userId?: true
+  streak?: true
+  category?: true
+  timeOfDay?: true
+  energyLevel?: true
+  priority?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -76,6 +123,11 @@ export type HabitCountAggregateInputType = {
   name?: true
   lastCompletedAt?: true
   userId?: true
+  streak?: true
+  category?: true
+  timeOfDay?: true
+  energyLevel?: true
+  priority?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -119,6 +171,18 @@ export type HabitAggregateArgs<ExtArgs extends runtime.Types.Extensions.Internal
   /**
    * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
    * 
+   * Select which fields to average
+  **/
+  _avg?: HabitAvgAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
+   * Select which fields to sum
+  **/
+  _sum?: HabitSumAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
    * Select which fields to find the minimum value
   **/
   _min?: HabitMinAggregateInputType
@@ -149,6 +213,8 @@ export type HabitGroupByArgs<ExtArgs extends runtime.Types.Extensions.InternalAr
   take?: number
   skip?: number
   _count?: HabitCountAggregateInputType | true
+  _avg?: HabitAvgAggregateInputType
+  _sum?: HabitSumAggregateInputType
   _min?: HabitMinAggregateInputType
   _max?: HabitMaxAggregateInputType
 }
@@ -158,9 +224,16 @@ export type HabitGroupByOutputType = {
   name: string
   lastCompletedAt: Date | null
   userId: string
+  streak: number
+  category: string
+  timeOfDay: string | null
+  energyLevel: string
+  priority: number
   createdAt: Date
   updatedAt: Date
   _count: HabitCountAggregateOutputType | null
+  _avg: HabitAvgAggregateOutputType | null
+  _sum: HabitSumAggregateOutputType | null
   _min: HabitMinAggregateOutputType | null
   _max: HabitMaxAggregateOutputType | null
 }
@@ -188,6 +261,11 @@ export type HabitWhereInput = {
   name?: Prisma.StringFilter<"Habit"> | string
   lastCompletedAt?: Prisma.DateTimeNullableFilter<"Habit"> | Date | string | null
   userId?: Prisma.StringFilter<"Habit"> | string
+  streak?: Prisma.IntFilter<"Habit"> | number
+  category?: Prisma.StringFilter<"Habit"> | string
+  timeOfDay?: Prisma.StringNullableFilter<"Habit"> | string | null
+  energyLevel?: Prisma.StringFilter<"Habit"> | string
+  priority?: Prisma.IntFilter<"Habit"> | number
   createdAt?: Prisma.DateTimeFilter<"Habit"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Habit"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -198,6 +276,11 @@ export type HabitOrderByWithRelationInput = {
   name?: Prisma.SortOrder
   lastCompletedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   userId?: Prisma.SortOrder
+  streak?: Prisma.SortOrder
+  category?: Prisma.SortOrder
+  timeOfDay?: Prisma.SortOrderInput | Prisma.SortOrder
+  energyLevel?: Prisma.SortOrder
+  priority?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
@@ -211,6 +294,11 @@ export type HabitWhereUniqueInput = Prisma.AtLeast<{
   name?: Prisma.StringFilter<"Habit"> | string
   lastCompletedAt?: Prisma.DateTimeNullableFilter<"Habit"> | Date | string | null
   userId?: Prisma.StringFilter<"Habit"> | string
+  streak?: Prisma.IntFilter<"Habit"> | number
+  category?: Prisma.StringFilter<"Habit"> | string
+  timeOfDay?: Prisma.StringNullableFilter<"Habit"> | string | null
+  energyLevel?: Prisma.StringFilter<"Habit"> | string
+  priority?: Prisma.IntFilter<"Habit"> | number
   createdAt?: Prisma.DateTimeFilter<"Habit"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Habit"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -221,11 +309,18 @@ export type HabitOrderByWithAggregationInput = {
   name?: Prisma.SortOrder
   lastCompletedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   userId?: Prisma.SortOrder
+  streak?: Prisma.SortOrder
+  category?: Prisma.SortOrder
+  timeOfDay?: Prisma.SortOrderInput | Prisma.SortOrder
+  energyLevel?: Prisma.SortOrder
+  priority?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.HabitCountOrderByAggregateInput
+  _avg?: Prisma.HabitAvgOrderByAggregateInput
   _max?: Prisma.HabitMaxOrderByAggregateInput
   _min?: Prisma.HabitMinOrderByAggregateInput
+  _sum?: Prisma.HabitSumOrderByAggregateInput
 }
 
 export type HabitScalarWhereWithAggregatesInput = {
@@ -236,6 +331,11 @@ export type HabitScalarWhereWithAggregatesInput = {
   name?: Prisma.StringWithAggregatesFilter<"Habit"> | string
   lastCompletedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Habit"> | Date | string | null
   userId?: Prisma.StringWithAggregatesFilter<"Habit"> | string
+  streak?: Prisma.IntWithAggregatesFilter<"Habit"> | number
+  category?: Prisma.StringWithAggregatesFilter<"Habit"> | string
+  timeOfDay?: Prisma.StringNullableWithAggregatesFilter<"Habit"> | string | null
+  energyLevel?: Prisma.StringWithAggregatesFilter<"Habit"> | string
+  priority?: Prisma.IntWithAggregatesFilter<"Habit"> | number
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Habit"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Habit"> | Date | string
 }
@@ -244,6 +344,11 @@ export type HabitCreateInput = {
   id?: string
   name: string
   lastCompletedAt?: Date | string | null
+  streak?: number
+  category?: string
+  timeOfDay?: string | null
+  energyLevel?: string
+  priority?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutHabitsInput
@@ -254,6 +359,11 @@ export type HabitUncheckedCreateInput = {
   name: string
   lastCompletedAt?: Date | string | null
   userId: string
+  streak?: number
+  category?: string
+  timeOfDay?: string | null
+  energyLevel?: string
+  priority?: number
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -262,6 +372,11 @@ export type HabitUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   lastCompletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  streak?: Prisma.IntFieldUpdateOperationsInput | number
+  category?: Prisma.StringFieldUpdateOperationsInput | string
+  timeOfDay?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  energyLevel?: Prisma.StringFieldUpdateOperationsInput | string
+  priority?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutHabitsNestedInput
@@ -272,6 +387,11 @@ export type HabitUncheckedUpdateInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   lastCompletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  streak?: Prisma.IntFieldUpdateOperationsInput | number
+  category?: Prisma.StringFieldUpdateOperationsInput | string
+  timeOfDay?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  energyLevel?: Prisma.StringFieldUpdateOperationsInput | string
+  priority?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -281,6 +401,11 @@ export type HabitCreateManyInput = {
   name: string
   lastCompletedAt?: Date | string | null
   userId: string
+  streak?: number
+  category?: string
+  timeOfDay?: string | null
+  energyLevel?: string
+  priority?: number
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -289,6 +414,11 @@ export type HabitUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   lastCompletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  streak?: Prisma.IntFieldUpdateOperationsInput | number
+  category?: Prisma.StringFieldUpdateOperationsInput | string
+  timeOfDay?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  energyLevel?: Prisma.StringFieldUpdateOperationsInput | string
+  priority?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -298,6 +428,11 @@ export type HabitUncheckedUpdateManyInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   lastCompletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   userId?: Prisma.StringFieldUpdateOperationsInput | string
+  streak?: Prisma.IntFieldUpdateOperationsInput | number
+  category?: Prisma.StringFieldUpdateOperationsInput | string
+  timeOfDay?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  energyLevel?: Prisma.StringFieldUpdateOperationsInput | string
+  priority?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -317,8 +452,18 @@ export type HabitCountOrderByAggregateInput = {
   name?: Prisma.SortOrder
   lastCompletedAt?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  streak?: Prisma.SortOrder
+  category?: Prisma.SortOrder
+  timeOfDay?: Prisma.SortOrder
+  energyLevel?: Prisma.SortOrder
+  priority?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+}
+
+export type HabitAvgOrderByAggregateInput = {
+  streak?: Prisma.SortOrder
+  priority?: Prisma.SortOrder
 }
 
 export type HabitMaxOrderByAggregateInput = {
@@ -326,6 +471,11 @@ export type HabitMaxOrderByAggregateInput = {
   name?: Prisma.SortOrder
   lastCompletedAt?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  streak?: Prisma.SortOrder
+  category?: Prisma.SortOrder
+  timeOfDay?: Prisma.SortOrder
+  energyLevel?: Prisma.SortOrder
+  priority?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -335,8 +485,18 @@ export type HabitMinOrderByAggregateInput = {
   name?: Prisma.SortOrder
   lastCompletedAt?: Prisma.SortOrder
   userId?: Prisma.SortOrder
+  streak?: Prisma.SortOrder
+  category?: Prisma.SortOrder
+  timeOfDay?: Prisma.SortOrder
+  energyLevel?: Prisma.SortOrder
+  priority?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+}
+
+export type HabitSumOrderByAggregateInput = {
+  streak?: Prisma.SortOrder
+  priority?: Prisma.SortOrder
 }
 
 export type HabitCreateNestedManyWithoutUserInput = {
@@ -385,6 +545,11 @@ export type HabitCreateWithoutUserInput = {
   id?: string
   name: string
   lastCompletedAt?: Date | string | null
+  streak?: number
+  category?: string
+  timeOfDay?: string | null
+  energyLevel?: string
+  priority?: number
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -393,6 +558,11 @@ export type HabitUncheckedCreateWithoutUserInput = {
   id?: string
   name: string
   lastCompletedAt?: Date | string | null
+  streak?: number
+  category?: string
+  timeOfDay?: string | null
+  energyLevel?: string
+  priority?: number
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -431,6 +601,11 @@ export type HabitScalarWhereInput = {
   name?: Prisma.StringFilter<"Habit"> | string
   lastCompletedAt?: Prisma.DateTimeNullableFilter<"Habit"> | Date | string | null
   userId?: Prisma.StringFilter<"Habit"> | string
+  streak?: Prisma.IntFilter<"Habit"> | number
+  category?: Prisma.StringFilter<"Habit"> | string
+  timeOfDay?: Prisma.StringNullableFilter<"Habit"> | string | null
+  energyLevel?: Prisma.StringFilter<"Habit"> | string
+  priority?: Prisma.IntFilter<"Habit"> | number
   createdAt?: Prisma.DateTimeFilter<"Habit"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Habit"> | Date | string
 }
@@ -439,6 +614,11 @@ export type HabitCreateManyUserInput = {
   id?: string
   name: string
   lastCompletedAt?: Date | string | null
+  streak?: number
+  category?: string
+  timeOfDay?: string | null
+  energyLevel?: string
+  priority?: number
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -447,6 +627,11 @@ export type HabitUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   lastCompletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  streak?: Prisma.IntFieldUpdateOperationsInput | number
+  category?: Prisma.StringFieldUpdateOperationsInput | string
+  timeOfDay?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  energyLevel?: Prisma.StringFieldUpdateOperationsInput | string
+  priority?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -455,6 +640,11 @@ export type HabitUncheckedUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   lastCompletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  streak?: Prisma.IntFieldUpdateOperationsInput | number
+  category?: Prisma.StringFieldUpdateOperationsInput | string
+  timeOfDay?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  energyLevel?: Prisma.StringFieldUpdateOperationsInput | string
+  priority?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -463,6 +653,11 @@ export type HabitUncheckedUpdateManyWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   lastCompletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  streak?: Prisma.IntFieldUpdateOperationsInput | number
+  category?: Prisma.StringFieldUpdateOperationsInput | string
+  timeOfDay?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  energyLevel?: Prisma.StringFieldUpdateOperationsInput | string
+  priority?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -474,6 +669,11 @@ export type HabitSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   name?: boolean
   lastCompletedAt?: boolean
   userId?: boolean
+  streak?: boolean
+  category?: boolean
+  timeOfDay?: boolean
+  energyLevel?: boolean
+  priority?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -484,6 +684,11 @@ export type HabitSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   name?: boolean
   lastCompletedAt?: boolean
   userId?: boolean
+  streak?: boolean
+  category?: boolean
+  timeOfDay?: boolean
+  energyLevel?: boolean
+  priority?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -494,6 +699,11 @@ export type HabitSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   name?: boolean
   lastCompletedAt?: boolean
   userId?: boolean
+  streak?: boolean
+  category?: boolean
+  timeOfDay?: boolean
+  energyLevel?: boolean
+  priority?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -504,11 +714,16 @@ export type HabitSelectScalar = {
   name?: boolean
   lastCompletedAt?: boolean
   userId?: boolean
+  streak?: boolean
+  category?: boolean
+  timeOfDay?: boolean
+  energyLevel?: boolean
+  priority?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type HabitOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "lastCompletedAt" | "userId" | "createdAt" | "updatedAt", ExtArgs["result"]["habit"]>
+export type HabitOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "lastCompletedAt" | "userId" | "streak" | "category" | "timeOfDay" | "energyLevel" | "priority" | "createdAt" | "updatedAt", ExtArgs["result"]["habit"]>
 export type HabitInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }
@@ -529,6 +744,11 @@ export type $HabitPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
     name: string
     lastCompletedAt: Date | null
     userId: string
+    streak: number
+    category: string
+    timeOfDay: string | null
+    energyLevel: string
+    priority: number
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["habit"]>
@@ -959,6 +1179,11 @@ export interface HabitFieldRefs {
   readonly name: Prisma.FieldRef<"Habit", 'String'>
   readonly lastCompletedAt: Prisma.FieldRef<"Habit", 'DateTime'>
   readonly userId: Prisma.FieldRef<"Habit", 'String'>
+  readonly streak: Prisma.FieldRef<"Habit", 'Int'>
+  readonly category: Prisma.FieldRef<"Habit", 'String'>
+  readonly timeOfDay: Prisma.FieldRef<"Habit", 'String'>
+  readonly energyLevel: Prisma.FieldRef<"Habit", 'String'>
+  readonly priority: Prisma.FieldRef<"Habit", 'Int'>
   readonly createdAt: Prisma.FieldRef<"Habit", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Habit", 'DateTime'>
 }
