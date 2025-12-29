@@ -385,16 +385,16 @@ export function getSmartGreeting(briefing: DailyBriefing): string {
     else if (hour < 17) timeGreeting = "Good afternoon";
     else timeGreeting = "Good evening";
 
-    let moodMessage = "";
-    if (overallMood === "productive") {
-        moodMessage = "Let's have a productive day!";
-    } else if (overallMood === "busy") {
-        moodMessage = "It's a busy day, but you've got this!";
-    } else if (overallMood === "relaxed") {
-        moodMessage = "Enjoy your relatively light day!";
-    } else {
-        moodMessage = "Today's packed, but tackle it one step at a time.";
-    }
+    let moodMessage = "Himanshu";
+    // if (overallMood === "productive") {
+    //     moodMessage = "Let's have a productive day!";
+    // } else if (overallMood === "busy") {
+    //     moodMessage = "It's a busy day, but you've got this!";
+    // } else if (overallMood === "relaxed") {
+    //     moodMessage = "Enjoy your relatively light day!";
+    // } else {
+    // }
+    // moodMessage = "Today's packed, but tackle it one step at a time.";
 
-    return `${timeGreeting}! ${moodMessage}`;
+    return `${timeGreeting}, ${moodMessage}!`;
 }

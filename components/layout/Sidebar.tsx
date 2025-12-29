@@ -35,7 +35,7 @@ export function Sidebar() {
     <>
       <div className="flex h-16 items-center border-b px-6 justify-between">
         <h1 className="text-xl font-bold tracking-tight bg-linear-to-r from-primary to-purple-400 bg-clip-text text-transparent">
-          Daily Driver
+          My Daily Driver
         </h1>
         <button className="md:hidden" onClick={() => setMobileMenuOpen(false)}>
           <X className="h-6 w-6" />
