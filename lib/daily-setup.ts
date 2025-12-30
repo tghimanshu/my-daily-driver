@@ -80,7 +80,7 @@ export async function generateDailyBriefing(
     };
 
     // Calculate priorities
-    const topPriorities = getTopPriorities(priorityFactors, 3);
+    const topPriorities = getTopPriorities(priorityFactors, 30);
     const quickWins = getQuickWins(priorityFactors);
     const allPriorities = rankPriorities(priorityFactors);
     const mustDo = allPriorities.filter((p) => p.urgency >= 8).slice(0, 5);

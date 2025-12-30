@@ -56,7 +56,7 @@ export function MorningBriefing({ briefing, greeting }: MorningBriefingProps) {
             {/* Header Greeting */}
             <div className="flex items-start justify-between">
                 <div>
-                    <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 dark:from-purple-400 dark:to-pink-400 bg-clip-text text-transparent">
+                    <h1 className="text-4xl font-bold bg-liear from-purple-600 to-pink-600 dark:from-purple-400 dark:to-pink-400 bg-clip-text text-transparent">
                         {greeting}
                     </h1>
                     <p className="text-muted-foreground mt-2">
@@ -68,12 +68,14 @@ export function MorningBriefing({ briefing, greeting }: MorningBriefingProps) {
                         })}
                     </p>
                 </div>
-                <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${mood.bg}`}>
+                <button 
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full ${mood.bg}`}
+                >
                     <span className="text-2xl">{mood.icon}</span>
                     <span className={`font-semibold capitalize ${mood.color}`}>
                         {summary.overallMood} Day
                     </span>
-                </div>
+                </button>
             </div>
 
             {/* Quick Stats */}
@@ -85,7 +87,7 @@ export function MorningBriefing({ briefing, greeting }: MorningBriefingProps) {
                         </div>
                         <div>
                             <p className="text-2xl font-bold">{summary.totalTasks}</p>
-                            <p className="text-xs text-muted-foreground">Tasks Today</p>
+                            <p className="text-xs text-muted-foreground">Pending Tasks Today</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -132,14 +134,14 @@ export function MorningBriefing({ briefing, greeting }: MorningBriefingProps) {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Target className="h-5 w-5 text-purple-500" />
-                        Top 3 Priorities
+                        Today's Tasks
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                     {priorities.top3.length > 0 ? (
                         priorities.top3.map((item, index) => (
                             <div key={index} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
-                                <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold ${index === 0 ? "bg-yellow-500 text-white" :
+                                <div className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold ${index === 0 ? "bg-yellow-500 text-white" :
                                         index === 1 ? "bg-gray-400 text-white" :
                                             "bg-amber-700 text-white"
                                     }`}>
@@ -185,7 +187,7 @@ export function MorningBriefing({ briefing, greeting }: MorningBriefingProps) {
                         <CardContent className="space-y-2">
                             {priorities.quickWins.slice(0, 3).map((item: any, index: number) => (
                                 <div key={index} className="flex items-center gap-2 text-sm">
-                                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                    <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
                                     <span>{item.title}</span>
                                 </div>
                             ))}
@@ -194,7 +196,9 @@ export function MorningBriefing({ briefing, greeting }: MorningBriefingProps) {
                 )}
 
                 {/* Schedule Advice */}
-                {insights.scheduleAdvice.length > 0 && (
+                {(
+                    insights.scheduleAdvice.length > 1
+                ) && (
                     <Card className="glass">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-base">
