@@ -1,3 +1,5 @@
+import { auth, signIn} from "@/auth";
+
 export interface CalendarEvent {
   id: string;
   summary: string;

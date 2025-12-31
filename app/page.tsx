@@ -1,4 +1,4 @@
-import { auth } from "@/auth";
+import { auth, signIn } from "@/auth";
 import { fetchTodayHabits } from "@/app/actions/habits";
 import { fetchContributionData } from "@/lib/api/github";
 import { fetchWeather } from "@/lib/api/weather";
