@@ -2,6 +2,8 @@
 
 A modern, beautiful, and professional dashboard to manage your daily life with amazing widgets, analytics, and productivity tracking.
 
+## NOTE: The following is a Vibe Coded example and has a lot of edge cases issues.
+
 ![Dashboard](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
