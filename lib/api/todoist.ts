@@ -40,6 +40,7 @@ export async function fetchDailyTasks(): Promise<TodoistTask[]> {
     }
 
     const tasks = await res.json();
+    console.log(tasks);
     return tasks;
   } catch (e) {
     console.error("Todoist API Error:", e);
