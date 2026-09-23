@@ -24,3 +24,14 @@ Initial Widgets
 
 Either individual widget can track the streaks or the daily task widget can
 integrate with the other widgets to track the streaks. The daily task widget can also be used to track the streaks of the other widgets. Like leet code questions/github contributions.
+
+## Integrations
+
+IntegrationFactory: A factory class that creates singleton instances of the integration classes based on the user's preferences and the data received from the backend server.
+
+Integration classes:
+- GitHubIntegration: Handles the integration with GitHub API
+- LeetCodeIntegration: Handles the integration with LeetCode API
+- GoogleCalendarIntegration: Handles the integration with Google Calendar API
+- HackerNewsIntegration: Handles the integration with Hacker News API
+- DailyTaskIntegration: Handles the integration with the Daily Task API
