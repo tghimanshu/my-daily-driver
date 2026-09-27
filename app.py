@@ -2,6 +2,8 @@ import hashlib
 import os
 import secrets
 import sys
+import threading
+import time
 from datetime import datetime, timezone
 from urllib.parse import urlencode, urlparse
 
@@ -10,6 +12,7 @@ from flask import Flask, jsonify, redirect, render_template_string, request, ses
 
 from github_integration import GitHubIntegration
 from leetcode_integration import LeetCodeIntegration
+from sites_integration import SiteStatus
 
 WEAK_SECRET_KEYS = {"change_me", "my-daily-driver-dev-secret", "secret", ""}
 MIN_SECRET_KEY_LENGTH = 32
@@ -115,6 +118,13 @@ _CREDENTIAL_STORE = {}
 CREDENTIAL_TTL_SECONDS = 60 * 60 * 24 * 30
 MAX_CREDENTIAL_SESSIONS = 32
 
+# Site checks are network bound and outlive a page load, so the result is cached
+# and serialised: several open tabs polling at once should trigger one round of
+# checks rather than one each.
+_SITES_CACHE = {"payload": None, "at": 0.0}
+_SITES_LOCK = threading.Lock()
+SITE_CACHE_TTL_SECONDS = 60
+
 HTML_TEMPLATE = r"""
 <!doctype html>
 <html lang="en">
@@ -138,6 +148,7 @@ HTML_TEMPLATE = r"""
         --good: #34d399;
         --warn: #fbbf24;
         --bad: #fb7185;
+        --info: #38bdf8;
         --github: #a78bfa;
         --leetcode: #fbbf24;
         --radius: 20px;
@@ -224,7 +235,7 @@ HTML_TEMPLATE = r"""
 
       .pulse {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 14px;
         margin-top: 30px;
       }
@@ -473,6 +484,109 @@ HTML_TEMPLATE = r"""
 
       .empty .cta { margin-top: 14px; width: fit-content; }
 
+      /* ---------- site status ---------- */
+
+      .card.wide { grid-column: 1 / -1; }
+
+      .site-list { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+
+      .site {
+        display: grid;
+        grid-template-columns: 14px minmax(0, 1.6fr) minmax(0, 1.4fr) auto auto;
+        align-items: center;
+        gap: 12px;
+        padding: 11px 12px;
+        border-radius: 12px;
+        transition: background 0.15s ease;
+      }
+
+      .site:hover { background: rgba(148, 163, 184, 0.07); }
+
+      .site + .site { box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.09); }
+
+      .site .led {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--faint);
+        box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.12);
+      }
+
+      .site.up .led { background: var(--good); box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.18); }
+      .site.down .led { background: var(--bad); box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.2); }
+
+      .site .name {
+        min-width: 0;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .site .target {
+        min-width: 0;
+        color: var(--muted);
+        font-size: 0.82rem;
+        font-family: var(--mono);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-decoration: none;
+      }
+
+      .site .target:hover { color: var(--text); text-decoration: underline; }
+
+      .site .detail {
+        color: var(--muted);
+        font-size: 0.82rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 26ch;
+      }
+
+      .site.down .detail { color: #ffc4cd; }
+
+      .site .latency {
+        color: var(--muted);
+        font-size: 0.82rem;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+        white-space: nowrap;
+        min-width: 6ch;
+      }
+
+      .site.up[data-slow="1"] .latency { color: var(--warn); }
+
+      .site-head {
+        display: grid;
+        grid-template-columns: 14px minmax(0, 1.6fr) minmax(0, 1.4fr) auto auto;
+        gap: 12px;
+        padding: 0 12px 6px;
+        font-size: 0.68rem;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--faint);
+      }
+
+      @media (max-width: 760px) {
+        .site,
+        .site-head { grid-template-columns: 14px minmax(0, 1fr) auto; }
+        .site .target,
+        .site-head .h-url { display: none; }
+        .site-head .h-detail { display: none; }
+        /* On a phone the reason a site is down matters more than keeping the
+           row one line tall, so it wraps under the name. */
+        .site .detail {
+          grid-column: 2 / 4;
+          max-width: none;
+          white-space: normal;
+          overflow: visible;
+          line-height: 1.35;
+        }
+      }
+
       /* ---------- footer ---------- */
 
       .footer {
@@ -530,7 +644,7 @@ HTML_TEMPLATE = r"""
 
       @media (max-width: 620px) {
         .shell { padding: 24px 16px 32px; }
-        .pulse { grid-template-columns: 1fr; }
+        .pulse { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .topbar { align-items: flex-start; }
         .clock { text-align: left; margin-left: 0; }
         .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -572,6 +686,11 @@ HTML_TEMPLATE = r"""
           <p class="label">Best streak</p>
           <p class="value" id="pulse-streak"><span class="skeleton">&nbsp;</span></p>
           <p class="note" id="pulse-streak-note">Days in a row</p>
+        </div>
+        <div class="pulse-item" style="--accent: var(--info)">
+          <p class="label">Sites online</p>
+          <p class="value" id="pulse-sites"><span class="skeleton">&nbsp;</span></p>
+          <p class="note" id="pulse-sites-note">Checking your sites</p>
         </div>
       </section>
 
@@ -676,6 +795,35 @@ HTML_TEMPLATE = r"""
             <a class="btn" id="leetcode-reconnect" href="/leetcode/login">Connect LeetCode</a>
           </div>
         </section>
+
+        <section class="card wide" id="sites-card" style="--accent: var(--info)" aria-labelledby="sites-brand">
+          <div class="card-head">
+            <div class="avatar" id="sites-avatar" aria-hidden="true">◎</div>
+            <div class="who">
+              <p class="handle" id="sites-user">Self-hosted</p>
+              <p class="brand" id="sites-brand">Uptime</p>
+            </div>
+            <div class="head-actions">
+              <button class="btn" id="sites-refresh" type="button">Check now</button>
+            </div>
+          </div>
+
+          <div class="site-head" id="sites-head" hidden>
+            <span></span>
+            <span>Service</span>
+            <span class="h-url">Endpoint</span>
+            <span class="h-detail">Status</span>
+            <span>Latency</span>
+          </div>
+          <div class="site-list" id="sites-list" role="list"></div>
+
+          <div class="empty" id="sites-empty" hidden>
+            <p id="sites-hint">No sites configured yet. Add them to <code>.env</code> as
+              <code>SELF_HOSTED_SITES=blog=https://blog.example.com,immich=http://10.0.0.4:2283</code>,
+              then restart. Append <code>|keyword</code> to require a string in the response body.
+            </p>
+          </div>
+        </section>
       </main>
 
       <footer class="footer">
@@ -693,6 +841,7 @@ HTML_TEMPLATE = r"""
 
     <script>
       const REFRESH_MS = 60000;
+      const SITE_REFRESH_MS = 60000;
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       let lastPayload = null;
       let loadedAt = null;
@@ -929,6 +1078,90 @@ HTML_TEMPLATE = r"""
         setText('updated', 'Updated ' + label);
       }
 
+      function renderSites(data) {
+        const list = byId('sites-list');
+        const empty = byId('sites-empty');
+        const head = byId('sites-head');
+        if (!list) return;
+
+        const sites = (data && data.sites) || [];
+        const configured = (data && data.configured) || 0;
+        const up = (data && data.up) || 0;
+        const down = (data && data.down) || 0;
+
+        head.hidden = sites.length === 0;
+        empty.hidden = configured > 0;
+        list.textContent = '';
+
+        sites.forEach((site) => {
+          const row = document.createElement('div');
+          row.className = 'site ' + (site.up ? 'up' : 'down');
+          row.setAttribute('role', 'listitem');
+          const slow = site.up && site.latency_ms != null && site.latency_ms > 1500;
+          if (slow) row.dataset.slow = '1';
+
+          const led = document.createElement('span');
+          led.className = 'led';
+
+          const name = document.createElement('span');
+          name.className = 'name';
+          name.textContent = site.name || site.url;
+
+          const link = document.createElement('a');
+          link.className = 'target';
+          link.href = site.url;
+          link.textContent = site.url.replace(/^https?:\/\//, '');
+          link.target = '_blank';
+          link.rel = 'noopener';
+
+          const detail = document.createElement('span');
+          detail.className = 'detail';
+          detail.textContent = site.up
+            ? (slow ? 'slow response' : 'operational')
+            : (site.detail || 'unreachable');
+
+          const latency = document.createElement('span');
+          latency.className = 'latency';
+          latency.textContent = site.latency_ms == null ? '—' : site.latency_ms + ' ms';
+
+          row.appendChild(led);
+          row.appendChild(name);
+          row.appendChild(link);
+          row.appendChild(detail);
+          row.appendChild(latency);
+          list.appendChild(row);
+        });
+
+        setText('sites-user', configured > 0
+          ? plural(configured, 'service') + ' monitored'
+          : 'Self-hosted');
+        setNumber('pulse-sites', up, configured > 0 ? ' / ' + configured : '');
+        setText('pulse-sites-note', configured === 0
+          ? 'Not configured'
+          : down > 0
+            ? down + ' down: ' + sites.filter((s) => !s.up).map((s) => s.name).join(', ')
+            : 'All operational');
+      }
+
+      function markSitesStale() {
+        setText('pulse-sites-note', 'Could not check sites');
+      }
+
+      function loadSites(force) {
+        return fetch('/api/sites' + (force ? '?refresh=1' : ''), {
+          headers: { Accept: 'application/json' }
+        })
+          .then((response) => {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
+          })
+          .then(renderSites)
+          .catch((error) => {
+            if (!byId('sites-list').children.length) markSitesStale();
+            console.error(error);
+          });
+      }
+
       function runClock() {
         const now = new Date();
         setText('clock-time', now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -962,6 +1195,22 @@ HTML_TEMPLATE = r"""
       setInterval(tickUpdated, 1000);
       load();
       setInterval(load, REFRESH_MS);
+
+      // Polled on its own schedule: a site that hangs must not hold up the
+      // dashboard, and the two refresh rates do not have to match.
+      const refreshButton = byId('sites-refresh');
+      if (refreshButton) {
+        refreshButton.addEventListener('click', () => {
+          refreshButton.disabled = true;
+          refreshButton.textContent = 'Checking…';
+          loadSites(true).then(() => {
+            refreshButton.disabled = false;
+            refreshButton.textContent = 'Check now';
+          });
+        });
+      }
+      loadSites(false);
+      setInterval(() => loadSites(false), SITE_REFRESH_MS);
     </script>
   </body>
 </html>
@@ -1539,6 +1788,41 @@ def index():
 def dashboard_api():
     payload = build_dashboard_payload()
     return jsonify(payload)
+
+
+@app.route("/api/sites")
+def sites_api():
+    return jsonify(sites_payload(force=request.args.get("refresh") == "1"))
+
+
+def sites_payload(force=False):
+    """
+    Status of the configured self-hosted sites, cached briefly.
+
+    Kept out of the dashboard payload on purpose. A site that hangs would
+    otherwise hold the whole dashboard open for the length of its timeout, and
+    the widget refreshes on its own schedule anyway.
+    """
+    checker = SiteStatus()
+    with _SITES_LOCK:
+        cached = _SITES_CACHE.get("payload")
+        fresh = cached is not None and not force and (
+            time.monotonic() - _SITES_CACHE["at"] < SITE_CACHE_TTL_SECONDS
+        )
+        if fresh:
+            return cached
+
+        sites = checker.check_all(checker.parse())
+        payload = {
+            "configured": len(sites),
+            "up": sum(1 for site in sites if site["up"]),
+            "down": sum(1 for site in sites if not site["up"]),
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "sites": sites,
+        }
+        _SITES_CACHE["payload"] = payload
+        _SITES_CACHE["at"] = time.monotonic()
+        return payload
 
 
 @app.route("/api/auth/status")

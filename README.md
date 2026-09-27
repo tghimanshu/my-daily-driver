@@ -23,6 +23,30 @@ place to bring all your information together and make it easily accessible.
 ## Current Integrations
 - **GitHub**: Track your contributions, streaks and repositories.
 - **LeetCode**: Monitor your coding progress and recent activity.
+- **Self-hosted sites**: Watch the uptime of anything you host yourself.
+
+## Monitoring your own sites
+
+List what you host in `.env` as comma separated `name=url` pairs. The name is
+what the widget shows, and a bare url works too if the host is a good enough
+label:
+
+```sh
+SELF_HOSTED_SITES=blog=https://blog.example.com,immich=http://10.0.0.4:2283,vault=https://vault.example.com|healthy
+```
+
+Any 2xx or 3xx counts as up. Append `|keyword` to also require a string in the
+response body, which catches a service that answers `200` while actually
+broken, such as a reverse proxy serving its own error page. Checks run
+concurrently with a timeout, so an unreachable host never holds up the healthy
+ones, and results are cached for a minute. The widget has its own *Check now*
+button and refreshes independently of the rest of the dashboard, because a site
+that hangs should not delay anything else.
+
+Failures are reported with the reason rather than a bare red dot:
+`connection refused`, `host not found`, `timed out after 8.0s`, `HTTP 502`, or
+`responded without 'healthy'`. TLS certificates are verified, so a self-signed
+certificate is reported as a TLS problem instead of being silently accepted.
 
 ## Running it
 

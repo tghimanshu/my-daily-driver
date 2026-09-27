@@ -840,5 +840,202 @@ class DashboardPayloadContractTests(unittest.TestCase):
         self.assertEqual(leetcode['current_streak'], 4)
 
 
+class SiteConfigTests(unittest.TestCase):
+    """SELF_HOSTED_SITES is hand written, so it has to survive typos."""
+
+    def setUp(self):
+        self.checker = app_module.SiteStatus()
+
+    def test_named_pairs(self):
+        sites = self.checker.parse('blog=https://blog.example.com,immich=http://10.0.0.4:2283')
+        self.assertEqual([s['name'] for s in sites], ['blog', 'immich'])
+        self.assertEqual(sites[0]['url'], 'https://blog.example.com')
+        self.assertEqual(sites[1]['url'], 'http://10.0.0.4:2283')
+
+    def test_bare_url_uses_the_host_as_the_label(self):
+        sites = self.checker.parse('https://photos.example.com/index.html')
+        self.assertEqual(sites[0]['name'], 'photos.example.com')
+        self.assertEqual(sites[0]['url'], 'https://photos.example.com/index.html')
+
+    def test_missing_scheme_is_added(self):
+        self.assertEqual(self.checker.parse('vault=home.example.com')[0]['url'],
+                         'https://home.example.com')
+
+    def test_keyword_is_kept_separate_from_the_url(self):
+        site = self.checker.parse('immich=http://10.0.0.4:2283|Immich')[0]
+        self.assertEqual(site['keyword'], 'Immich')
+        self.assertEqual(site['url'], 'http://10.0.0.4:2283')
+
+    def test_port_in_the_url_survives(self):
+        self.assertEqual(self.checker.parse('immich=http://10.0.0.4:2283')[0]['name'], 'immich')
+
+    def test_junk_entries_are_skipped_not_fatal(self):
+        sites = self.checker.parse('blog=https://a.example.com, ,=,=,nonsense=,ok=https://b.example.com')
+        self.assertEqual([s['name'] for s in sites], ['blog', 'ok'])
+
+    def test_empty_configuration(self):
+        self.assertEqual(self.checker.parse(''), [])
+        self.assertEqual(self.checker.parse('   '), [])
+
+
+class SiteCheckTests(unittest.TestCase):
+    def setUp(self):
+        self.checker = app_module.SiteStatus(timeout=0.5)
+
+    def _response(self, status_code=200, body=b'ok'):
+        response = mock.Mock()
+        response.status_code = status_code
+        response.raw.read.return_value = body
+        return response
+
+    def test_2xx_is_up(self):
+        with mock.patch.object(app_module.requests, 'get', return_value=self._response()):
+            result = self.checker.check({'name': 'blog', 'url': 'https://blog.example.com'})
+        self.assertTrue(result['up'])
+        self.assertEqual(result['status_code'], 200)
+        self.assertEqual(result['detail'], 'HTTP 200')
+        self.assertIsNotNone(result['latency_ms'])
+        self.assertIn('checked_at', result)
+
+    def test_redirect_to_a_healthy_page_is_up(self):
+        with mock.patch.object(app_module.requests, 'get', return_value=self._response(200)):
+            result = self.checker.check({'name': 'app', 'url': 'https://app.example.com'})
+        self.assertTrue(result['up'])
+
+    def test_500_is_down_and_says_so(self):
+        with mock.patch.object(app_module.requests, 'get', return_value=self._response(502)):
+            result = self.checker.check({'name': 'app', 'url': 'https://app.example.com'})
+        self.assertFalse(result['up'])
+        self.assertEqual(result['detail'], 'HTTP 502')
+
+    def test_404_is_down(self):
+        with mock.patch.object(app_module.requests, 'get', return_value=self._response(404)):
+            result = self.checker.check({'name': 'app', 'url': 'https://app.example.com'})
+        self.assertFalse(result['up'])
+        self.assertEqual(result['status_code'], 404)
+
+    def test_keyword_present_is_up(self):
+        with mock.patch.object(
+            app_module.requests, 'get', return_value=self._response(body=b'<title>Immich</title>')
+        ):
+            result = self.checker.check(
+                {'name': 'immich', 'url': 'https://photos.example.com', 'keyword': 'immich'}
+            )
+        self.assertTrue(result['up'])
+
+    def test_keyword_missing_fails_despite_a_200(self):
+        with mock.patch.object(
+            app_module.requests, 'get', return_value=self._response(body=b'<h1>Gateway</h1>')
+        ):
+            result = self.checker.check(
+                {'name': 'immich', 'url': 'https://photos.example.com', 'keyword': 'immich'}
+            )
+        self.assertFalse(result['up'])
+        self.assertIn('immich', result['detail'])
+
+    def test_timeout_is_reported_not_raised(self):
+        with mock.patch.object(
+            app_module.requests, 'get', side_effect=app_module.requests.exceptions.Timeout()
+        ):
+            result = self.checker.check({'name': 'app', 'url': 'https://app.example.com'})
+        self.assertFalse(result['up'])
+        self.assertIn('timed out', result['detail'])
+
+    def test_refused_connection_is_named(self):
+        error = app_module.requests.exceptions.ConnectionError('Connection refused')
+        with mock.patch.object(app_module.requests, 'get', side_effect=error):
+            result = self.checker.check({'name': 'app', 'url': 'https://app.example.com'})
+        self.assertEqual(result['detail'], 'connection refused')
+
+    def test_dns_failure_is_named(self):
+        error = app_module.requests.exceptions.ConnectionError(
+            "HTTPSConnectionPool(host='x'): Max retries exceeded (Name or service not known)"
+        )
+        with mock.patch.object(app_module.requests, 'get', side_effect=error):
+            result = self.checker.check({'name': 'app', 'url': 'https://app.example.com'})
+        self.assertEqual(result['detail'], 'host not found')
+
+    def test_tls_failure_is_named(self):
+        error = app_module.requests.exceptions.SSLError('certificate verify failed')
+        with mock.patch.object(app_module.requests, 'get', side_effect=error):
+            result = self.checker.check({'name': 'app', 'url': 'https://app.example.com'})
+        self.assertIn('TLS', result['detail'])
+
+    def test_check_all_keeps_every_site(self):
+        sites = [{'name': 'a', 'url': 'https://a.example.com'},
+                 {'name': 'b', 'url': 'https://b.example.com'}]
+
+        def fake_get(url, **kwargs):
+            if 'a.example' in url:
+                return self._response(200)
+            raise app_module.requests.exceptions.ConnectionError('Connection refused')
+
+        with mock.patch.object(app_module.requests, 'get', side_effect=fake_get):
+            results = self.checker.check_all(sites)
+
+        self.assertEqual([r['name'] for r in results], ['a', 'b'])
+        self.assertTrue(results[0]['up'])
+        self.assertFalse(results[1]['up'])
+
+    def test_check_all_on_nothing(self):
+        self.assertEqual(self.checker.check_all([]), [])
+
+
+class SitesEndpointTests(unittest.TestCase):
+    def setUp(self):
+        app_module.app.config['TESTING'] = True
+        self.client = app_module.app.test_client()
+        app_module._SITES_CACHE.update({'payload': None, 'at': 0.0})
+
+    def tearDown(self):
+        app_module._SITES_CACHE.update({'payload': None, 'at': 0.0})
+
+    def _stub_checks(self, results):
+        return mock.patch.object(
+            app_module.SiteStatus, 'check_all', return_value=results
+        )
+
+    def test_unconfigured_returns_an_empty_but_complete_payload(self):
+        with mock.patch.dict('os.environ', {'SELF_HOSTED_SITES': ''}):
+            payload = self.client.get('/api/sites').get_json()
+        self.assertEqual(payload['configured'], 0)
+        self.assertEqual(payload['sites'], [])
+        self.assertIn('checked_at', payload)
+
+    def test_counts_are_reported(self):
+        sites = [
+            {'name': 'blog', 'url': 'https://blog.example.com', 'up': True,
+             'status_code': 200, 'latency_ms': 40, 'detail': 'HTTP 200', 'checked_at': 'now'},
+            {'name': 'immich', 'url': 'http://10.0.0.4:2283', 'up': False,
+             'status_code': None, 'latency_ms': 8000, 'detail': 'timed out after 8.0s',
+             'checked_at': 'now'},
+        ]
+        with mock.patch.dict('os.environ', {'SELF_HOSTED_SITES': 'blog=https://b.example.com,immich=http://10.0.0.4:2283'}):
+            with self._stub_checks(sites):
+                payload = self.client.get('/api/sites').get_json()
+        self.assertEqual(payload['configured'], 2)
+        self.assertEqual(payload['up'], 1)
+        self.assertEqual(payload['down'], 1)
+        self.assertEqual(payload['sites'][1]['detail'], 'timed out after 8.0s')
+
+    def test_results_are_cached_between_requests(self):
+        sites = [{'name': 'blog', 'url': 'https://blog.example.com', 'up': True,
+                  'status_code': 200, 'latency_ms': 12, 'detail': 'HTTP 200',
+                  'checked_at': 'now'}]
+        with mock.patch.dict('os.environ', {'SELF_HOSTED_SITES': 'blog=https://b.example.com'}):
+            with self._stub_checks(sites) as checks:
+                self.client.get('/api/sites')
+                self.client.get('/api/sites')
+                self.assertEqual(checks.call_count, 1)
+
+    def test_refresh_bypasses_the_cache(self):
+        sites = []
+        with mock.patch.dict('os.environ', {'SELF_HOSTED_SITES': 'blog=https://b.example.com'}):
+            with self._stub_checks(sites) as checks:
+                self.client.get('/api/sites')
+                self.client.get('/api/sites?refresh=1')
+                self.assertEqual(checks.call_count, 2)
+
+
 if __name__ == '__main__':
     unittest.main()
