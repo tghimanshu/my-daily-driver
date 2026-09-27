@@ -26,6 +26,23 @@ def store_as(sid, provider, values):
         app_module.store_credentials(provider, values)
 
 
+def _accept_credentials(token):
+    """An authenticate() stand-in that accepts a token without calling the API."""
+    def fake(self, credentials):
+        self._access_token = token
+        self._is_authenticated = True
+    return fake
+
+
+def store_for(client, provider, values):
+    """Store credentials for the session id this client is actually holding."""
+    sid = client_sid(client)
+    if sid is None:
+        client.get('/api/auth/status')
+        sid = client_sid(client)
+    store_as(sid, provider, values)
+
+
 def stored_by_sid(sid, provider):
     entry = app_module._CREDENTIAL_STORE.get(sid) or {}
     return dict(entry.get('providers', {}).get(provider) or {})
@@ -148,13 +165,34 @@ class GitHubAuthTests(unittest.TestCase):
     def test_callback_rejects_a_callback_that_did_not_start_here(self):
         response = self.client.get('/oauth/github/callback?code=some-code')
         self.assertEqual(response.status_code, 400)
-        self.assertIn('state mismatch', response.get_json()['error'])
+        body = response.get_data(as_text=True)
+        self.assertIn('could not be verified', body)
+        # The failure is explained rather than left as a bare status code.
+        self.assertIn('What to check', body)
+        self.assertIn('redirect_uri', body)
 
     def test_callback_rejects_a_tampered_state(self):
         self.client.get('/auth/github')
         response = self.client.get('/oauth/github/callback?code=some-code&state=forged')
         self.assertEqual(response.status_code, 400)
-        self.assertIn('state mismatch', response.get_json()['error'])
+        self.assertIn('could not be verified', response.get_data(as_text=True))
+
+    def test_state_failure_names_the_host_mismatch(self):
+        # A login started on 127.0.0.1 and returned to localhost loses the cookie.
+        response = self.client.get(
+            '/oauth/github/callback?code=some-code&state=forged',
+            base_url='http://127.0.0.1:5000',
+        )
+        body = response.get_data(as_text=True)
+        self.assertIn('127.0.0.1:5000', body)
+        self.assertIn('localhost:5000', body)
+
+    def test_no_host_hint_when_hosts_agree(self):
+        response = self.client.get(
+            '/oauth/github/callback?code=some-code&state=forged',
+            base_url='http://localhost:5000',
+        )
+        self.assertNotIn('different host', response.get_data(as_text=True))
 
     def test_state_cannot_be_replayed(self):
         self.client.get('/auth/github')
@@ -173,7 +211,9 @@ class GitHubAuthTests(unittest.TestCase):
             '/oauth/github/callback?error=access_denied&error_description=User+said+no'
         )
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.get_json()['details'], 'User said no')
+        body = response.get_data(as_text=True)
+        self.assertIn('declined the request', body)
+        self.assertIn('User said no', body)
 
     @mock.patch.object(app_module, 'GitHubIntegration')
     def test_successful_callback_stores_the_token(self, integration_factory):
@@ -221,9 +261,9 @@ class GitHubAuthTests(unittest.TestCase):
 
         response = self.client.get('/oauth/github/callback?code=stale&state=%s' % state)
         self.assertEqual(response.status_code, 400)
+        self.assertIn('rejected the login', response.get_data(as_text=True))
 
-        with self.client.session_transaction() as session:
-            self.assertNotIn('github_token', session)
+        self.assertEqual(stored_for(self.client, 'github'), {})
 
 
 class LeetCodeAuthTests(unittest.TestCase):
@@ -353,8 +393,8 @@ class SessionIsolationTests(unittest.TestCase):
         second.authenticate.return_value = 'user-two'
 
         with mock.patch.object(app_module, 'GitHubIntegration', side_effect=[first, second]):
-            app_module._integration_for(app_module.GitHubIntegration, 'token-one', None)
-            app_module._integration_for(app_module.GitHubIntegration, 'token-two', None)
+            app_module._integration_for('github', app_module.GitHubIntegration, 'token-one', None)
+            app_module._integration_for('github', app_module.GitHubIntegration, 'token-two', None)
 
         first.authenticate.assert_called_once_with('token-one')
         second.authenticate.assert_called_once_with('token-two')
@@ -365,7 +405,7 @@ class SessionIsolationTests(unittest.TestCase):
         integration.authenticate.side_effect = ValueError('rejected')
 
         with mock.patch.object(app_module, 'GitHubIntegration', return_value=integration):
-            self.assertIsNone(app_module._integration_for(app_module.GitHubIntegration, 'bad', None))
+            self.assertIsNone(app_module._integration_for('github', app_module.GitHubIntegration, 'bad', None))
         self.assertEqual(app_module._INTEGRATIONS, {})
 
 
@@ -467,7 +507,7 @@ class CredentialStoreTests(unittest.TestCase):
                     app_module, 'GitHubIntegration', return_value=integration
                 ):
                     app_module._integration_for(
-                        app_module.GitHubIntegration, 'token-%d' % index, None
+                        'github', app_module.GitHubIntegration, 'token-%d' % index, None
                     )
             self.assertLessEqual(len(app_module._INTEGRATIONS), 2)
         finally:
@@ -569,6 +609,235 @@ class EnvFlagTests(unittest.TestCase):
             ), mock.patch('sys.stderr') as stderr:
                 app_module.main()
         self.assertIn('Werkzeug debugger', ''.join(call.args[0] for call in stderr.write.call_args_list))
+
+
+class DisconnectionReasonTests(unittest.TestCase):
+    """
+    A provider that cannot be used has to say why.
+
+    Reporting a bare "not connected" is what made a rejected token impossible to
+    diagnose from the dashboard.
+    """
+
+    def setUp(self):
+        app_module.app.config['TESTING'] = True
+        app_module._INTEGRATIONS.clear()
+        app_module._CREDENTIAL_STORE.clear()
+        app_module._LAST_ERROR.clear()
+        self.client = app_module.app.test_client()
+
+    def tearDown(self):
+        app_module._INTEGRATIONS.clear()
+        app_module._CREDENTIAL_STORE.clear()
+        app_module._LAST_ERROR.clear()
+
+    def _reject_api_calls(self, status=401):
+        response = mock.Mock()
+        response.status_code = status
+        response.content = b'{}'
+        response.headers = {}
+        response.raise_for_status.side_effect = app_module.requests.HTTPError(
+            '%d error' % status, response=response
+        )
+        return mock.Mock(return_value=response)
+
+    def test_rejected_token_is_explained_in_the_payload(self):
+        store_for(self.client, 'github', {'token': 'stale-token', 'username': 'octocat'})
+
+        with mock.patch.object(
+            app_module.requests, 'request', side_effect=self._reject_api_calls(401)
+        ):
+            reason = self.client.get('/api/dashboard').get_json()['github']['reason']
+
+        self.assertIn('rejected', reason.lower())
+        self.assertIn('expired', reason.lower())
+
+    def test_rate_limit_is_explained(self):
+        store_for(self.client, 'github', {'token': 'a-token'})
+        with mock.patch.object(
+            app_module.requests, 'request', side_effect=self._reject_api_calls(403)
+        ):
+            reason = self.client.get('/api/dashboard').get_json()['github']['reason']
+        self.assertIn('rate limit', reason.lower())
+
+    def test_missing_credential_is_explained(self):
+        with mock.patch.dict('os.environ', {'GITHUB_TOKEN': '', 'LEETCODE_SESSION': ''}):
+            payload = self.client.get('/api/dashboard').get_json()
+        self.assertIn('No GitHub token', payload['github']['reason'])
+        self.assertIn('No LeetCode session', payload['leetcode']['reason'])
+
+    def test_explicit_disconnect_is_explained(self):
+        with mock.patch.dict('os.environ', {'GITHUB_TOKEN': 'a-token'}):
+            self.client.get('/logout')
+            reason = self.client.get('/api/dashboard').get_json()['github']['reason']
+        self.assertIn('Disconnected in this browser', reason)
+
+
+class ConnectedAfterLoginTests(unittest.TestCase):
+    """
+    The dashboard must stay connected once a login has succeeded.
+
+    A stored username used to be handed to GitHubIntegration in place of the
+    token, which read as an OAuth code exchange and left the widget reporting
+    "not connected" immediately after a successful login.
+    """
+
+    def setUp(self):
+        app_module.app.config['TESTING'] = True
+        app_module._INTEGRATIONS.clear()
+        app_module._CREDENTIAL_STORE.clear()
+        app_module._LAST_ERROR.clear()
+        self.client = app_module.app.test_client()
+
+    def tearDown(self):
+        app_module._INTEGRATIONS.clear()
+        app_module._CREDENTIAL_STORE.clear()
+        app_module._LAST_ERROR.clear()
+
+    @staticmethod
+    def _response(payload):
+        response = mock.Mock()
+        response.status_code = 200
+        response.content = b'{}'
+        response.headers = {}
+        response.json.return_value = payload
+        return response
+
+    def _api(self, method, url, **kwargs):
+        if 'leetcode' in url:
+            return self._response({'data': None})
+        if url.endswith('/user'):
+            return self._response({'login': 'octocat', 'name': 'The Octocat'})
+        if '/repos' in url:
+            return self._response([{'name': 'hello-world', 'stargazers_count': 7}])
+        return self._response([])
+
+    def test_stored_username_does_not_displace_the_token(self):
+        store_for(self.client, 'github', {'token': 'gho_valid', 'username': 'octocat'})
+
+        with mock.patch.object(app_module.requests, 'request', side_effect=self._api):
+            github = self.client.get('/api/dashboard').get_json()['github']
+
+        self.assertTrue(github['connected'], github.get('reason'))
+        self.assertEqual(github['username'], 'octocat')
+        self.assertIsNone(github.get('reason'))
+
+    def test_connected_status_survives_a_second_request(self):
+        store_for(self.client, 'github', {'token': 'gho_valid', 'username': 'octocat'})
+
+        with mock.patch.object(app_module.requests, 'request', side_effect=self._api):
+            first = self.client.get('/api/dashboard').get_json()['github']
+            second = self.client.get('/api/dashboard').get_json()['github']
+
+        self.assertTrue(first['connected'], first.get('reason'))
+        self.assertTrue(second['connected'], second.get('reason'))
+
+
+class DashboardPayloadContractTests(unittest.TestCase):
+    """
+    The dashboard renders from fixed field names.
+
+    These are the fields the page reads, so removing or renaming one silently
+    blanks a widget instead of failing loudly.
+    """
+
+    def setUp(self):
+        app_module.app.config['TESTING'] = True
+        app_module._INTEGRATIONS.clear()
+        app_module._CREDENTIAL_STORE.clear()
+        app_module._LAST_ERROR.clear()
+        self.client = app_module.app.test_client()
+
+    def tearDown(self):
+        app_module._INTEGRATIONS.clear()
+        app_module._CREDENTIAL_STORE.clear()
+        app_module._LAST_ERROR.clear()
+
+    def test_disconnected_payloads_still_carry_every_field(self):
+        # No credentials and no network: this asserts the shape, not the data.
+        with mock.patch.dict('os.environ', {'GITHUB_TOKEN': '', 'LEETCODE_SESSION': ''}):
+            payload = self.client.get('/api/dashboard').get_json()
+
+        self.assertFalse(payload['github']['connected'])
+        self.assertFalse(payload['leetcode']['connected'])
+
+        for key in ('connected', 'username', 'reason'):
+            self.assertIn(key, payload['github'])
+            self.assertIn(key, payload['leetcode'])
+
+        for key in ('activity_count', 'commit_today', 'today_commit_count',
+                    'current_streak', 'longest_streak', 'days', 'top_repo',
+                    'public_repos', 'avatar', 'url', 'name'):
+            self.assertIn(key, payload['github'], 'github is missing ' + key)
+
+        for key in ('today_solved_count', 'solved_today', 'current_streak',
+                    'acceptance_rate', 'total_solved', 'easy', 'medium',
+                    'hard', 'ranking', 'avatar', 'name'):
+            self.assertIn(key, payload['leetcode'], 'leetcode is missing ' + key)
+
+    def test_connected_github_exposes_the_activity_series(self):
+        days = [{'date': '2026-09-%02d' % (day + 1), 'count': day}
+                for day in range(30)]
+        user = {
+            'login': 'octocat',
+            'name': 'The Octocat',
+            'avatar_url': 'https://example.invalid/a.png',
+            'html_url': 'https://github.com/octocat',
+            'public_repos': 42,
+        }
+        repos = [{'name': 'my-daily-driver'}]
+
+        with mock.patch.object(
+            app_module.GitHubIntegration, 'authenticate',
+            _accept_credentials('gho_valid')), mock.patch.object(
+            app_module.GitHubIntegration, 'core_functionality',
+            return_value={
+                'user': user,
+                'repositories': repos,
+                'contributions': {
+                    'days': days,
+                    'total': sum(day['count'] for day in days),
+                    'current_streak': 5,
+                    'longest_streak': 19,
+                },
+            },
+        ):
+            store_for(self.client, 'github', {'token': 'gho_valid', 'username': 'octocat'})
+            github = self.client.get('/api/dashboard').get_json()['github']
+
+        self.assertTrue(github['connected'])
+        self.assertEqual(len(github['days']), 30)
+        self.assertEqual(github['current_streak'], 5)
+        self.assertEqual(github['longest_streak'], 19)
+        self.assertEqual(github['public_repos'], 42)
+        self.assertEqual(github['top_repo'], 'my-daily-driver')
+        self.assertEqual(github['url'], 'https://github.com/octocat')
+        self.assertEqual(github['avatar'], 'https://example.invalid/a.png')
+
+    def test_connected_leetcode_exposes_the_difficulty_split(self):
+        user = {
+            'username': 'someone',
+            'name': 'Someone',
+            'acceptance_rate': 63.71,
+            'ranking': 216438,
+            'solved': {'all': 496, 'easy': 409, 'medium': 75, 'hard': 12},
+        }
+        with mock.patch.object(
+            app_module.LeetCodeIntegration, 'authenticate',
+            _accept_credentials('session')), mock.patch.object(
+            app_module.LeetCodeIntegration, 'core_functionality',
+            return_value={'user': user, 'streak': {'available': True, 'current_streak': 4}},
+        ):
+            store_for(self.client, 'leetcode', {'token': 'session', 'username': 'someone'})
+            leetcode = self.client.get('/api/dashboard').get_json()['leetcode']
+
+        self.assertTrue(leetcode['connected'])
+        self.assertEqual(leetcode['total_solved'], 496)
+        self.assertEqual(leetcode['easy'], 409)
+        self.assertEqual(leetcode['medium'], 75)
+        self.assertEqual(leetcode['hard'], 12)
+        self.assertEqual(leetcode['ranking'], 216438)
+        self.assertEqual(leetcode['current_streak'], 4)
 
 
 if __name__ == '__main__':
