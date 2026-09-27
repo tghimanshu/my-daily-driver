@@ -21,7 +21,67 @@ place to bring all your information together and make it easily accessible.
 - **Keyboard Friendly**: To all our keyboard warriors, navigate and interact with your dashboard using keyboard shortcuts for a seamless experience.
 
 ## Current Integrations
-- **GitHub**: Track your contributions and repositories.
-- **LeetCode**: Monitor your coding progress and challenges.
-- **Google Calendar**: View your calendar events and schedule.
-- **Hacker News**: Stay updated with the latest news in the tech world.
+- **GitHub**: Track your contributions, streaks and repositories.
+- **LeetCode**: Monitor your coding progress and recent activity.
+
+## Running it
+
+```sh
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # then fill it in
+python app.py          # http://127.0.0.1:5000
+```
+
+The backend serves both the API and the frontend from the same port, and reads
+`.env` on startup. Real environment variables override the file, so
+`GITHUB_TOKEN=... python app.py` works without editing it.
+
+By default the server binds to `127.0.0.1` with the debugger off, because the
+Werkzeug debugger is a remote shell for anyone who can reach it. `HOST` and
+`FLASK_DEBUG` in `.env` change that, and setting `FLASK_DEBUG=1` alongside a
+non-loopback `HOST` prints a warning.
+
+`python -m unittest test_dashboard` runs the test suite.
+
+### About your credentials
+
+`SECRET_KEY` must be at least 32 characters. A shorter or placeholder value is
+replaced with a random key for that run, which signs you out on restart:
+
+```sh
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Access tokens are never sent to the browser. The session cookie holds nothing
+but a random id that points at an in-process store, so a token is not readable
+by anything that can see the cookie. The tradeoff is that the store is not
+persisted: restarting the server disconnects every browser, and `.env`
+credentials have to be re-entered or reconnected once. Stale sessions are
+evicted after 30 days.
+
+## Connecting an account
+
+Both providers can also be configured in `.env` alone, which is handy for a
+headless setup. Otherwise use the buttons in the dashboard.
+
+**GitHub** uses a real OAuth app: register one under
+[GitHub developer settings](https://github.com/settings/developers) with
+`http://localhost:5000/oauth/github/callback` as the callback URL, set
+`GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`, then press *Connect GitHub*. The
+dashboard only requests the `read:user` scope, which is enough for the profile,
+public repositories, and the public activity feed it reads. Set `GITHUB_TOKEN`
+to a personal access token instead if you would rather skip the browser; it
+also raises the rate limit from 60 to 5000 requests an hour.
+
+**LeetCode** has no OAuth app that a third-party dashboard can register, so
+there is nothing to create. Its API is the private GraphQL endpoint the website
+itself uses, and that endpoint only checks the `LEETCODE_SESSION` cookie set at
+login. Sign in at leetcode.com, copy that cookie value from DevTools, and paste
+it into *Connect LeetCode*. The cookie expires every few weeks, so expect to
+reconnect now and then. `LEETCODE_SESSION` in `.env` does the same thing
+without a browser.
+
+*Disconnect accounts* clears both. Credentials in `.env` apply to every session,
+so a disconnect is remembered per browser rather than being undone on the next
+page load.

@@ -159,7 +159,10 @@ class GitHubIntegration(Integration):
         counts = {start + timedelta(days=offset): 0 for offset in range(days)}
 
         page = 1
-        while len(counts) and page <= 3:
+        # The unauthenticated rate limit is 60 requests an hour, so public-only
+        # lookups stay on a single page of events.
+        max_pages = 5 if self._is_authenticated else 1
+        while page <= max_pages:
             events = self._request(
                 "GET",
                 f"/users/{username}/events/public",
@@ -167,6 +170,7 @@ class GitHubIntegration(Integration):
             )
             if not events:
                 break
+            oldest = None
             for event in events:
                 created = event.get("created_at")
                 if not created:
@@ -174,8 +178,14 @@ class GitHubIntegration(Integration):
                 event_day = datetime.fromisoformat(
                     created.replace("Z", "+00:00")
                 ).date()
+                if oldest is None or event_day < oldest:
+                    oldest = event_day
                 if event_day in counts:
                     counts[event_day] += 1
+            # Paging stops as soon as a page reaches back past the window, so a
+            # busy account is not silently truncated at 300 events.
+            if oldest is not None and oldest < start:
+                break
             page += 1
 
         series = [
@@ -259,21 +269,35 @@ class GitHubIntegration(Integration):
         if not (client_id and client_secret and code):
             raise ValueError("Incomplete GitHub OAuth credentials.")
 
+        # GitHub requires redirect_uri in the exchange whenever the authorize
+        # request carried one, and it has to match exactly.
+        payload = {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code,
+        }
+        redirect_uri = (
+            credentials.get("redirect_uri") or os.getenv("GITHUB_REDIRECT_URI")
+        )
+        if redirect_uri:
+            payload["redirect_uri"] = redirect_uri
+
         response = requests.post(
             self.TOKEN_URL,
-            data={
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "code": code,
-            },
+            data=payload,
             headers={"Accept": "application/json"},
             timeout=self.DEFAULT_TIMEOUT,
         )
-        response.raise_for_status()
-        payload = response.json()
-        if payload.get("error"):
-            raise ValueError(f"GitHub OAuth error: {payload['error']}")
-        return payload.get("access_token")
+        if response.status_code >= 400:
+            raise ValueError(
+                f"GitHub OAuth token request failed (HTTP {response.status_code})."
+            )
+        body = response.json()
+        if body.get("error"):
+            raise ValueError(
+                f"GitHub OAuth error: {body.get('error_description') or body['error']}"
+            )
+        return body.get("access_token")
 
     def _request(self, method, path, params=None):
         headers = {

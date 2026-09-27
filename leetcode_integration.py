@@ -1,6 +1,4 @@
-import os
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlencode
 
 import requests
 
@@ -16,14 +14,15 @@ class LeetCodeIntegration(Integration):
     versioned and can change without notice, so the queries live in class
     attributes and are kept as small as possible.
 
-    OAuth login happens in the widget layer, which forwards the resulting
-    access token. The token is a JWT that LeetCode also accepts as the
-    LEETCODE_SESSION cookie, so it is sent both ways to stay compatible.
+    There is also no OAuth app a third-party dashboard can register against:
+    /oauth/authorize and /oauth/access_token only serve LeetCode's own clients.
+    The site authenticates its private endpoints with the LEETCODE_SESSION
+    cookie it sets on login, so that cookie value is what this integration takes
+    and it is replayed as a cookie. Handing it over as an Authorization header
+    instead is the one thing LeetCode never accepted.
     """
 
     GRAPHQL_URL = "https://leetcode.com/graphql/"
-    TOKEN_URL = "https://leetcode.com/oauth/access_token"
-    AUTHORIZE_URL = "https://leetcode.com/oauth/authorize/"
     CONTRIB_URL = "https://leetcode.com/contrib/api/hot_active_days/"
     USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     DEFAULT_TIMEOUT = 20
@@ -75,6 +74,7 @@ class LeetCodeIntegration(Integration):
         id
         title
         titleSlug
+        timestamp
       }
     }
     """
@@ -91,6 +91,7 @@ class LeetCodeIntegration(Integration):
     def __init__(self, name="leetcode", settings=None):
         super().__init__(name)
         self._access_token = None
+        self._csrf_token = None
         self._authenticated_user = None
         self._cache = None
         self._cache_timestamp = None
@@ -118,35 +119,46 @@ class LeetCodeIntegration(Integration):
         """
         Authenticate the integration.
 
-        ``credentials`` may be a LeetCode session token or OAuth access token,
-        a mapping containing a ``session_token``/``access_token``/``token`` key,
-        or a mapping containing ``client_id``, ``client_secret`` and ``code`` to
-        exchange an OAuth code for a token.
+        ``credentials`` is the ``LEETCODE_SESSION`` cookie value, either as a
+        plain string or as a mapping with a ``session_token``/``access_token``/
+        ``token`` key and an optional ``csrftoken`` key. An optional
+        ``username`` only hints which account to report; the real username is
+        always read back from LeetCode.
         """
         if not credentials:
             raise ValueError("No credentials provided for LeetCode.")
 
         if isinstance(credentials, str):
             token = credentials
+            csrf_token = None
+            username_hint = None
         else:
             token = credentials.get("session_token") or credentials.get("access_token")
             token = token or credentials.get("token")
-            if not token:
-                token = self._exchange_oauth_code(credentials)
+            csrf_token = credentials.get("csrftoken") or None
+            username_hint = credentials.get("username") or None
 
         if not token:
-            raise ValueError("Could not resolve a LeetCode access token.")
+            raise ValueError(
+                "Could not resolve a LeetCode session token. Paste the "
+                "LEETCODE_SESSION cookie from a signed-in leetcode.com session."
+            )
 
         self._access_token = token
+        self._csrf_token = csrf_token
         try:
             self._authenticated_user = self._resolve_authenticated_user()
         except Exception:
             self._access_token = None
+            self._csrf_token = None
             raise
 
         self._is_authenticated = True
-        if self._authenticated_user and not self._settings.get("username"):
-            self._settings["username"] = self._authenticated_user
+        # The username LeetCode reports always wins; the hint only covers a
+        # session whose profile query did not name it.
+        resolved_username = self._authenticated_user or username_hint
+        if resolved_username:
+            self._settings["username"] = resolved_username
         self._cache = None
         self._cache_timestamp = None
         return self._authenticated_user
@@ -158,6 +170,7 @@ class LeetCodeIntegration(Integration):
 
     def logout(self):
         self._access_token = None
+        self._csrf_token = None
         self._authenticated_user = None
         self._is_authenticated = False
         self._cache = None
@@ -240,6 +253,7 @@ class LeetCodeIntegration(Integration):
                 "title": item.get("title"),
                 "title_slug": item.get("titleSlug"),
                 "url": f"https://leetcode.com/problems/{item.get('titleSlug')}/",
+                "solved_at": item.get("timestamp"),
             }
             for item in submissions
         ]
@@ -311,29 +325,6 @@ class LeetCodeIntegration(Integration):
             self._set_cached(payload)
         return payload
 
-    def get_authorization_url(self, client_id=None, redirect_uri=None, state=None, scope="*"):
-        """
-        Build the OAuth URL the widget layer redirects the browser to.
-
-        Kept here so the client id and redirect uri stay next to the token
-        exchange instead of being duplicated in the widget.
-        """
-        client_id = client_id or os.getenv("LEETCODE_CLIENT_ID")
-        redirect_uri = redirect_uri or os.getenv("LEETCODE_REDIRECT_URI")
-        if not (client_id and redirect_uri):
-            raise ValueError("Incomplete LeetCode OAuth configuration.")
-
-        params = {
-            "client_id": client_id,
-            "redirect_uri": redirect_uri,
-            "response_type": "code",
-            "scope": scope,
-        }
-        if state:
-            params["state"] = state
-
-        return self.AUTHORIZE_URL + "?" + urlencode(params)
-
     def _validate_settings(self, settings):
         if not isinstance(settings, dict):
             return False
@@ -364,45 +355,19 @@ class LeetCodeIntegration(Integration):
         """
         status = self._graphql(self.AUTHENTICATED_USER_QUERY).get("userStatus") or {}
         if not status.get("isSignedIn") or not status.get("username"):
-            raise ValueError("The LeetCode session token was rejected or has expired.")
-        return status.get("username")
-
-    def _exchange_oauth_code(self, credentials):
-        client_id = credentials.get("client_id") or os.getenv("LEETCODE_CLIENT_ID")
-        client_secret = credentials.get("client_secret") or os.getenv("LEETCODE_CLIENT_SECRET")
-        code = credentials.get("code")
-        if not (client_id and client_secret and code):
-            raise ValueError("Incomplete LeetCode OAuth credentials.")
-
-        response = requests.post(
-            self.TOKEN_URL,
-            data={
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "code": code,
-                "grant_type": "authorization_code",
-                "redirect_uri": credentials.get("redirect_uri")
-                or os.getenv("LEETCODE_REDIRECT_URI"),
-            },
-            headers={"User-Agent": self.USER_AGENT, "Referer": "https://leetcode.com/"},
-            timeout=self.DEFAULT_TIMEOUT,
-        )
-        if response.status_code in (301, 302, 303, 307, 308) or not response.headers.get(
-            "Content-Type", ""
-        ).startswith("application/json"):
             raise ValueError(
-                "LeetCode OAuth token endpoint rejected the request "
-                f"(HTTP {response.status_code}); it is protected by a bot check."
+                "LeetCode rejected the session cookie. Copy the current "
+                "LEETCODE_SESSION value from leetcode.com and try again."
             )
-        payload = response.json()
-        if payload.get("error"):
-            raise ValueError(f"LeetCode OAuth error: {payload['error']}")
-        return payload.get("access_token")
+        return status.get("username")
 
     def _graphql(self, query, **variables):
         data = self._request("POST", self.GRAPHQL_URL, json_body={"query": query, "variables": variables})
         if data.get("errors"):
-            raise RuntimeError(f"LeetCode GraphQL error: {data['errors'][0].get('message')}")
+            message = data["errors"][0].get("message")
+            if "is not signed in" in str(message).lower() or "must sign in" in str(message).lower():
+                raise ValueError("The LeetCode session cookie expired. Copy a fresh LEETCODE_SESSION from leetcode.com.")
+            raise RuntimeError(f"LeetCode GraphQL error: {message}")
         return data.get("data") or {}
 
     def _request(self, method, url, params=None, json_body=None):
@@ -413,8 +378,15 @@ class LeetCodeIntegration(Integration):
             "User-Agent": self.USER_AGENT,
         }
         if self._access_token:
-            headers["Cookie"] = f"LEETCODE_SESSION={self._access_token}"
-            headers["Authorization"] = f"Bearer {self._access_token}"
+            cookie = f"LEETCODE_SESSION={self._access_token}"
+            if self._csrf_token:
+                cookie += f"; csrftoken={self._csrf_token}"
+            headers["Cookie"] = cookie
+            if self._csrf_token:
+                # LeetCode pairs this header with the csrftoken cookie on
+                # authenticated calls. Sending the session JWT here instead is
+                # meaningless to it, so it is only sent when genuinely held.
+                headers["X-CSRFToken"] = self._csrf_token
 
         response = requests.request(
             method,
