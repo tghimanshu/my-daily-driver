@@ -12,6 +12,7 @@ from flask import Flask, jsonify, redirect, render_template_string, request, ses
 
 from github_integration import GitHubIntegration
 from leetcode_integration import LeetCodeIntegration
+from pomodoro import Pomodoro, clean_settings, settings_from_env
 from sites_integration import SiteStatus
 
 WEAK_SECRET_KEYS = {"change_me", "my-daily-driver-dev-secret", "secret", ""}
@@ -26,7 +27,15 @@ def load_env_file(path=None):
     still overrides the file. Parsed inline instead of pulling in python-dotenv:
     the dashboard is a single local process and this avoids an extra dependency
     for one file format.
+
+    Set ``DAILY_DRIVER_SKIP_DOTENV=1`` to ignore the file entirely. Worth doing
+    when the environment is already authoritative, such as under a container
+    orchestrator, and it is what keeps the test suite from picking up whatever
+    is in the developer's own .env.
     """
+    if os.environ.get("DAILY_DRIVER_SKIP_DOTENV", "").strip() in ("1", "true", "yes"):
+        return False
+
     path = path or os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     if not os.path.isfile(path):
         return False
@@ -125,6 +134,15 @@ _SITES_CACHE = {"payload": None, "at": 0.0}
 _SITES_LOCK = threading.Lock()
 SITE_CACHE_TTL_SECONDS = 60
 
+# The pomodoro timer keeps its own state per browser, for the same reason tokens
+# do not sit in the cookie: the client is not the source of truth. Holding the
+# timer here means a reload, a closed tab or a second tab all agree on how much
+# of the round is left. Every entry carries a timer, which is already internally
+# locked, and touches are bounded by the cap.
+_POMODORO_STORE = {}
+_POMODORO_LOCK = threading.Lock()
+MAX_POMODORO_SESSIONS = 32
+
 HTML_TEMPLATE = r"""
 <!doctype html>
 <html lang="en">
@@ -151,6 +169,7 @@ HTML_TEMPLATE = r"""
         --info: #38bdf8;
         --github: #a78bfa;
         --leetcode: #fbbf24;
+        --pomodoro: #fb7185;
         --radius: 20px;
         --shadow: 0 22px 48px rgba(3, 7, 18, 0.55);
         --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -235,7 +254,7 @@ HTML_TEMPLATE = r"""
 
       .pulse {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(5, minmax(0, 1fr));
         gap: 14px;
         margin-top: 30px;
       }
@@ -484,6 +503,10 @@ HTML_TEMPLATE = r"""
 
       .empty .cta { margin-top: 14px; width: fit-content; }
 
+      /* A long .env example in a <code> is one unbreakable token, which used to
+         give the whole page a horizontal scrollbar on a phone. */
+      .empty code { overflow-wrap: anywhere; }
+
       /* ---------- site status ---------- */
 
       .card.wide { grid-column: 1 / -1; }
@@ -587,6 +610,163 @@ HTML_TEMPLATE = r"""
         }
       }
 
+      /* ---------- pomodoro ---------- */
+
+      .focus-main {
+        display: flex;
+        align-items: center;
+        gap: 26px;
+        margin-top: 4px;
+      }
+
+      /* The ring doubles as the progress readout, so there is no separate bar to
+         keep in sync with the clock. */
+      .ring { position: relative; flex: none; width: 176px; height: 176px; }
+
+      .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+
+      .ring circle { fill: none; stroke-width: 9; }
+
+      .ring .track { stroke: rgba(8, 14, 28, 0.7); }
+
+      .ring .value {
+        stroke: var(--accent);
+        stroke-linecap: round;
+        transition: stroke-dashoffset 0.9s linear;
+      }
+
+      .ring .readout {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        text-align: center;
+        gap: 2px;
+      }
+
+      .ring .readout .time {
+        font-size: 2.9rem;
+        font-weight: 700;
+        letter-spacing: -0.045em;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+      }
+
+      .ring .readout .phase {
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      .focus-side { flex: 1 1 auto; min-width: 0; }
+
+      .focus-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+
+      /* Wider than the header buttons because this is the one thing on the page
+         that is pressed rather than glanced at. */
+      .btn.primary {
+        padding: 10px 20px;
+        font-size: 0.9rem;
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #0b1020;
+      }
+
+      .btn.primary:hover { background: var(--accent); filter: brightness(1.1); }
+      .btn:disabled { opacity: 0.45; cursor: default; transform: none; }
+
+      .focus-note {
+        margin: 14px 0 0;
+        font-size: 0.85rem;
+        color: var(--muted);
+        min-height: 1.3em;
+      }
+
+      /* The note under the ring counts down, so it cannot be the live region:
+         that would read a minute at a time. Round changes are announced here
+         instead, and only when something has actually changed. */
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+
+      /* ---------- settings form ---------- */
+
+      .settings {
+        margin-top: 18px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
+      }
+
+      .settings summary {
+        cursor: pointer;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--muted);
+        list-style: none;
+      }
+
+      .settings summary::-webkit-details-marker { display: none; }
+      .settings summary::before { content: "› "; color: var(--faint); }
+      .settings[open] summary::before { content: "‹ "; }
+      .settings summary:hover { color: var(--text); }
+
+      .fields {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+        gap: 12px;
+        margin-top: 16px;
+      }
+
+      .field { min-width: 0; }
+
+      .field label {
+        display: block;
+        font-size: 0.68rem;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--faint);
+      }
+
+      .field input {
+        width: 100%;
+        margin-top: 6px;
+        padding: 8px 10px;
+        border-radius: 11px;
+        border: 1px solid var(--border-strong);
+        background: rgba(8, 14, 28, 0.55);
+        color: var(--text);
+        font: inherit;
+        font-size: 0.95rem;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .field input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+      .settings-foot {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 14px;
+      }
+
+      .settings-foot p { margin: 0; font-size: 0.78rem; color: var(--faint); }
+
+      @media (max-width: 620px) {
+        .focus-main { flex-direction: column; gap: 18px; }
+        .focus-actions { justify-content: center; }
+      }
+
       /* ---------- footer ---------- */
 
       .footer {
@@ -642,6 +822,10 @@ HTML_TEMPLATE = r"""
         .grid { grid-template-columns: minmax(0, 1fr); }
       }
 
+      @media (max-width: 1020px) {
+        .pulse { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      }
+
       @media (max-width: 620px) {
         .shell { padding: 24px 16px 32px; }
         .pulse { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -686,6 +870,11 @@ HTML_TEMPLATE = r"""
           <p class="label">Best streak</p>
           <p class="value" id="pulse-streak"><span class="skeleton">&nbsp;</span></p>
           <p class="note" id="pulse-streak-note">Days in a row</p>
+        </div>
+        <div class="pulse-item" style="--accent: var(--good)">
+          <p class="label">Focus rounds</p>
+          <p class="value" id="pulse-focus"><span class="skeleton">&nbsp;</span></p>
+          <p class="note" id="pulse-focus-note">Timer loading</p>
         </div>
         <div class="pulse-item" style="--accent: var(--info)">
           <p class="label">Sites online</p>
@@ -796,6 +985,84 @@ HTML_TEMPLATE = r"""
           </div>
         </section>
 
+        <section class="card wide" id="pomodoro-card" style="--accent: var(--pomodoro)" aria-labelledby="pomodoro-brand">
+          <div class="card-head">
+            <div class="avatar" aria-hidden="true">◷</div>
+            <div class="who">
+              <p class="handle" id="pomodoro-user">Focus</p>
+              <p class="brand" id="pomodoro-brand">Pomodoro</p>
+            </div>
+            <div class="head-actions">
+              <button class="btn ghost" id="pomodoro-clear" type="button">Clear today</button>
+            </div>
+          </div>
+
+          <div class="focus-main">
+            <div class="ring" id="pomodoro-ring">
+              <svg viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+                <circle class="track" cx="60" cy="60" r="52"></circle>
+                <circle class="value" id="pomodoro-arc" cx="60" cy="60" r="52"></circle>
+              </svg>
+              <div class="readout">
+                <p class="time" id="pomodoro-time" role="timer">--:--</p>
+                <p class="phase" id="pomodoro-phase">Focus</p>
+              </div>
+            </div>
+
+            <div class="focus-side">
+              <div class="focus-actions">
+                <button class="btn primary" id="pomodoro-toggle" type="button">Start</button>
+                <button class="btn" id="pomodoro-reset" type="button">Reset</button>
+                <button class="btn ghost" id="pomodoro-skip" type="button">Skip</button>
+              </div>
+              <p class="focus-note" id="pomodoro-note">Loading your timer…</p>
+              <p class="sr-only" id="pomodoro-live" aria-live="polite"></p>
+              <div class="legend">
+                <div><i style="background: var(--pomodoro)"></i>Rounds today <b id="pomo-rounds">0</b></div>
+                <div><i style="background: var(--good)"></i>Focus time <b id="pomo-focus-time">0m</b></div>
+                <div><i style="background: var(--warn)"></i>Daily goal <b id="pomo-goal">0 / 0</b></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="block">
+            <p class="block-title"><span>This week</span><span id="pomo-week-total">0 rounds</span></p>
+            <div class="strip" id="pomo-week" role="img" aria-label="Focus rounds completed each day over the last week"></div>
+          </div>
+
+          <details class="settings" id="pomodoro-settings">
+            <summary>Customize the cycle</summary>
+            <form id="pomodoro-form">
+              <div class="fields">
+                <div class="field">
+                  <label for="pomo-work">Focus min</label>
+                  <input id="pomo-work" name="work_minutes" type="number" min="1" max="180" step="1" />
+                </div>
+                <div class="field">
+                  <label for="pomo-short">Short break min</label>
+                  <input id="pomo-short" name="short_break_minutes" type="number" min="0" max="60" step="1" />
+                </div>
+                <div class="field">
+                  <label for="pomo-long">Long break min</label>
+                  <input id="pomo-long" name="long_break_minutes" type="number" min="0" max="90" step="1" />
+                </div>
+                <div class="field">
+                  <label for="pomo-rounds">Rounds per long break</label>
+                  <input id="pomo-rounds-input" name="rounds" type="number" min="1" max="12" step="1" />
+                </div>
+                <div class="field">
+                  <label for="pomo-goal-input">Daily goal</label>
+                  <input id="pomo-goal-input" name="daily_goal" type="number" min="0" max="24" step="1" />
+                </div>
+              </div>
+              <div class="settings-foot">
+                <button class="btn" type="submit">Save</button>
+                <p id="pomodoro-saved" aria-live="polite"></p>
+              </div>
+            </form>
+          </details>
+        </section>
+
         <section class="card wide" id="sites-card" style="--accent: var(--info)" aria-labelledby="sites-brand">
           <div class="card-head">
             <div class="avatar" id="sites-avatar" aria-hidden="true">◎</div>
@@ -840,8 +1107,12 @@ HTML_TEMPLATE = r"""
     </noscript>
 
     <script>
+      window.POMODORO_CSRF = {{ csrf | tojson }};
+    </script>
+    <script>
       const REFRESH_MS = 60000;
       const SITE_REFRESH_MS = 60000;
+      const POMODORO_REFRESH_MS = 30000;
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       let lastPayload = null;
       let loadedAt = null;
@@ -1162,6 +1433,291 @@ HTML_TEMPLATE = r"""
           });
       }
 
+      /* ---------- pomodoro ---------- */
+
+      const RING_RADIUS = 52;
+      const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
+      // The server holds the timer, so the browser has to know when the round it
+      // last read is due and how far its own clock is from the server's. Ticking
+      // from that keeps the countdown on time; a poll only corrects it, so the
+      // chime lands when the round actually ends rather than when the next poll
+      // happens to notice.
+      let focus = null;
+      let focusDueAt = 0;
+      let focusSkewMs = 0;
+      let focusBusy = false;
+      let focusAnnounced = false;
+      // Set while one of our own actions paints, so a mode change it caused is
+      // announced once by the action rather than twice.
+      let focusQuiet = false;
+      let focusAudio = null;
+
+      function clockText(seconds) {
+        const left = Math.max(0, Math.round(seconds));
+        return Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+      }
+
+      function focusRemaining() {
+        if (!focus || !focus.running) return focus ? focus.remaining : 0;
+        return Math.max(0, Math.round((focusDueAt - (Date.now() + focusSkewMs)) / 1000));
+      }
+
+      function paintRing(seconds) {
+        const arc = byId('pomodoro-arc');
+        const total = (focus && focus.total) || 1;
+        if (!arc) return;
+        // The ring empties as the round runs down, so the eye gets the remaining
+        // time as an area as well as a number.
+        const spent = Math.min(1, Math.max(0, 1 - seconds / total));
+        arc.setAttribute('stroke-dasharray', RING_LENGTH.toFixed(2));
+        arc.setAttribute('stroke-dashoffset', (RING_LENGTH * (1 - spent)).toFixed(2));
+      }
+
+      function focusStatus() {
+        if (!focus) return '';
+        if (focus.running) return focus.label + ' · ' + clockText(focusRemaining()) + ' left';
+        if (focus.remaining < focus.total) {
+          return 'Paused at ' + clockText(focus.remaining) + ' of ' + focus.label.toLowerCase();
+        }
+        const settings = focus.settings;
+        return focus.is_break
+          ? 'Break ready · ' + clockText(focus.remaining)
+          : settings.work_minutes + ' min focus, ' + settings.short_break_minutes +
+            ' min break · goal ' + settings.daily_goal;
+      }
+
+      function paintFocusPulse() {
+        if (!focus) return;
+        const goal = Number(focus.daily_goal) || 0;
+        setNumber('pulse-focus', focus.rounds_today);
+        if (focus.running) {
+          setText('pulse-focus-note', focusStatus());
+        } else if (goal > 0) {
+          setText('pulse-focus-note', focus.goal_met
+            ? 'Daily goal met'
+            : plural(goal - focus.rounds_today, 'round') + ' to your goal of ' + goal);
+        } else {
+          setText('pulse-focus-note', plural(focus.focused_minutes_today, 'minute') + ' focused');
+        }
+      }
+
+      function drawWeek(history, today) {
+        const strip = byId('pomo-week');
+        if (!strip) return;
+        const counts = history || [];
+        const byDate = {};
+        counts.forEach((day) => { byDate[day.date] = day.rounds || 0; });
+        if (focus) byDate[focus.date] = focus.rounds_today;
+
+        // The week ends today. Anything the history holds that falls outside the
+        // last seven days is not shown, since a day with no data is not a zero.
+        const days = [];
+        const end = new Date((today || focus && focus.date) + 'T00:00:00');
+        for (let back = 6; back >= 0; back -= 1) {
+          const when = new Date(end.getTime() - back * 86400000);
+          const iso = when.getFullYear() + '-' +
+            String(when.getMonth() + 1).padStart(2, '0') + '-' +
+            String(when.getDate()).padStart(2, '0');
+          days.push({ date: iso, rounds: byDate[iso] || 0, when: when });
+        }
+
+        // Against the goal rather than the week's best, so a good week still reads
+        // as a good week instead of always topping out.
+        const peak = Math.max(Number(focus && focus.daily_goal) || 0, 1);
+        const total = days.reduce((sum, day) => sum + day.rounds, 0);
+        strip.textContent = '';
+        days.forEach((day) => {
+          const bar = document.createElement('div');
+          const ratio = day.rounds / peak;
+          const level = day.rounds === 0 ? 0 : ratio >= 1 ? 4 : ratio > 0.66 ? 3 : ratio > 0.33 ? 2 : 1;
+          bar.className = day.rounds > 0 ? 'bar' : 'bar empty';
+          bar.dataset.level = String(level);
+          bar.style.height = day.rounds > 0 ? Math.max(14, Math.round(ratio * 100)) + '%' : '100%';
+          bar.title = day.when.toLocaleDateString([], { month: 'short', day: 'numeric' }) +
+            ': ' + plural(day.rounds, 'round');
+          strip.appendChild(bar);
+        });
+        setText('pomo-week-total', plural(total, 'round') + ' this week');
+      }
+
+      function paintFocusForm(settings) {
+        const form = byId('pomodoro-form');
+        if (!form) return;
+        // Never overwrite a field being typed into: a poll lands every 30 seconds,
+        // which is about how long it takes to type a number.
+        if (form.contains(document.activeElement)) return;
+        form.elements.work_minutes.value = settings.work_minutes;
+        form.elements.short_break_minutes.value = settings.short_break_minutes;
+        form.elements.long_break_minutes.value = settings.long_break_minutes;
+        form.elements.rounds.value = settings.rounds;
+        form.elements.daily_goal.value = settings.daily_goal;
+      }
+
+      function paintFocusToggle() {
+        const toggle = byId('pomodoro-toggle');
+        if (!toggle || !focus || focusBusy) return;
+        const paused = !focus.running && focus.remaining < focus.total;
+        toggle.textContent = focus.running ? 'Pause' : (paused ? 'Resume' : 'Start');
+      }
+
+      function announceFocus(message) {
+        if (message) setText('pomodoro-live', message);
+      }
+
+      // What a screen reader is told after each of our own actions, since the
+      // server only narrates a round that ran out on its own.
+      const FOCUS_REPLIES = {
+        start: (s, wasPaused) => s.label + (wasPaused ? ' resumed.' : ' started.'),
+        pause: () => 'Timer paused.',
+        reset: (s) => s.label + ' back to ' + clockText(s.total) + '.',
+        skip: (s) => (s.is_break ? 'Break skipped.' : 'Round skipped, uncounted.'),
+        settings: () => 'Cycle updated.',
+        clear_today: () => "Today's counts cleared."
+      };
+
+      function renderFocus(state) {
+        if (!state) return;
+        const changed = Boolean(focus) && focus.mode !== state.mode;
+        focus = state;
+        focusDueAt = Date.now() + state.remaining * 1000;
+        focusSkewMs = state.remaining_at * 1000 - Date.now();
+        if (changed) focusAnnounced = false;
+
+        if (changed && !focusQuiet) announceFocus(state.notice || state.label + ' starting.');
+
+        byId('pomodoro-card').style.setProperty('--accent',
+          state.is_break ? 'var(--good)' : 'var(--pomodoro)');
+        setText('pomodoro-phase', state.label);
+        setText('pomodoro-note', state.notice || focusStatus());
+        setNumber('pomo-rounds', state.rounds_today);
+        setText('pomo-focus-time', state.focused_minutes_today + 'm');
+        setText('pomo-goal', Number(state.daily_goal) > 0
+          ? state.rounds_today + ' / ' + state.daily_goal
+          : 'off');
+        setText('pomodoro-user', state.running
+          ? state.label + ' in progress'
+          : state.is_break ? 'Break time' : 'Focus time');
+        paintFocusToggle();
+
+        paintRing(state.remaining);
+        paintFocusPulse();
+        drawWeek(state.history, state.date);
+        paintFocusForm(state.settings);
+      }
+
+      function tickFocus() {
+        if (!focus) return;
+        const left = focusRemaining();
+        setText('pomodoro-time', clockText(left));
+        paintRing(left);
+        if (focus.running) {
+          paintFocusPulse();
+          if (left <= 0 && !focusAnnounced) {
+            focusAnnounced = true;
+            setText('pomodoro-note', focus.is_break
+              ? 'Break over. Start the next round when you are ready.'
+              : 'Time is up. Take the break.');
+            ringChime();
+            // The server owns the transition to the next mode, and it does that on
+            // the read after the round ends. Ask now rather than waiting out the
+            // poll interval with a finished clock on screen.
+            loadFocus();
+          }
+        }
+      }
+
+      function ringChime() {
+        // Two short notes, built here rather than shipped as a file: a timer that
+        // says time is up should not depend on a second request to make noise.
+        try {
+          const Ctx = window.AudioContext || window.webkitAudioContext;
+          if (!Ctx) return;
+          focusAudio = focusAudio || new Ctx();
+          if (focusAudio.state === 'suspended') focusAudio.resume();
+          [0, 0.24].forEach((offset) => {
+            const at = focusAudio.currentTime + offset;
+            const tone = focusAudio.createOscillator();
+            const gain = focusAudio.createGain();
+            tone.type = 'sine';
+            tone.frequency.value = 660;
+            gain.gain.setValueAtTime(0.0001, at);
+            gain.gain.exponentialRampToValueAtTime(0.16, at + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.2);
+            tone.connect(gain).connect(focusAudio.destination);
+            tone.start(at);
+            tone.stop(at + 0.22);
+          });
+        } catch (error) {
+          // A browser that will not play audio is not a reason to fail the timer.
+          console.warn('pomodoro chime unavailable', error);
+        }
+      }
+
+      function setFocusBusy(on) {
+        focusBusy = on;
+        ['pomodoro-toggle', 'pomodoro-reset', 'pomodoro-skip', 'pomodoro-clear'].forEach((id) => {
+          const button = byId(id);
+          if (button) button.disabled = on;
+        });
+        if (!on) {
+          paintFocusToggle();
+          return;
+        }
+        const toggle = byId('pomodoro-toggle');
+        if (toggle) toggle.textContent = 'Working…';
+      }
+
+      function focusAction(action, extra) {
+        if (focusBusy) return Promise.resolve(null);
+        setFocusBusy(true);
+        return fetch('/api/pomodoro', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(Object.assign({
+            action: action,
+            csrf_token: window.POMODORO_CSRF
+          }, extra || {}))
+        })
+          .then((response) => response.json().then((data) => {
+            if (!response.ok) throw new Error(data.error || ('HTTP ' + response.status));
+            return data;
+          }))
+          .then((state) => {
+            // Our own action, so the local announcement has not happened yet.
+            if (action === 'start') focusAnnounced = false;
+            const reply = FOCUS_REPLIES[action];
+            const wasPaused = Boolean(focus) && !focus.running && focus.remaining < focus.total;
+            focusQuiet = true;
+            renderFocus(state);
+            focusQuiet = false;
+            announceFocus(state && (state.notice || (reply ? reply(state, wasPaused) : 'Timer updated.')));
+            return state;
+          })
+          .catch((error) => {
+            setText('pomodoro-note', error.message);
+            announceFocus(error.message);
+            console.error(error);
+            return null;
+          })
+          .then((state) => {
+            setFocusBusy(false);
+            return state;
+          });
+      }
+
+      function loadFocus() {
+        return fetch('/api/pomodoro', { headers: { Accept: 'application/json' } })
+          .then((response) => {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
+          })
+          .then(renderFocus)
+          .catch((error) => {
+            if (!focus) setText('pomodoro-note', 'The timer could not load.');
+            console.error(error);
+          });
+      }
+
       function runClock() {
         const now = new Date();
         setText('clock-time', now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -1211,6 +1767,49 @@ HTML_TEMPLATE = r"""
       }
       loadSites(false);
       setInterval(() => loadSites(false), SITE_REFRESH_MS);
+
+      // The timer's own schedule: a second every tick so the ring drains smoothly,
+      // and a poll well inside a round so the server stays the source of truth.
+      byId('pomodoro-toggle').addEventListener('click', () => {
+        focusAction(focus && focus.running ? 'pause' : 'start');
+      });
+      byId('pomodoro-reset').addEventListener('click', () => focusAction('reset'));
+      byId('pomodoro-skip').addEventListener('click', () => focusAction('skip'));
+
+      // Two clicks rather than a modal: a day's count is worth more than the
+      // annoyance of one stray extra press, and confirm() would block the tick.
+      const clearButton = byId('pomodoro-clear');
+      let clearArmed = null;
+      clearButton.addEventListener('click', () => {
+        if (clearArmed) {
+          window.clearTimeout(clearArmed);
+          clearArmed = null;
+          clearButton.textContent = 'Clear today';
+          focusAction('clear_today');
+          return;
+        }
+        clearButton.textContent = 'Click again to clear';
+        clearArmed = window.setTimeout(() => {
+          clearArmed = null;
+          clearButton.textContent = 'Clear today';
+        }, 4000);
+      });
+      byId('pomodoro-form').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const form = event.target;
+        const values = {};
+        ['work_minutes', 'short_break_minutes', 'long_break_minutes', 'rounds', 'daily_goal']
+          .forEach((name) => { values[name] = form.elements[name].value; });
+        focusAction('settings', values).then((state) => {
+          if (state) {
+            setText('pomodoro-saved', 'Saved. The round in progress was stopped so it can restart at the new length.');
+          }
+        });
+      });
+
+      loadFocus();
+      setInterval(tickFocus, 1000);
+      setInterval(loadFocus, POMODORO_REFRESH_MS);
     </script>
   </body>
 </html>
@@ -1781,7 +2380,9 @@ def build_dashboard_payload():
 
 @app.route("/")
 def index():
-    return render_template_string(HTML_TEMPLATE)
+    # The timer posts back to this app, so the page carries the same per-session
+    # token the login form uses.
+    return render_template_string(HTML_TEMPLATE, csrf=csrf_token())
 
 
 @app.route("/api/dashboard")
@@ -1828,6 +2429,92 @@ def sites_payload(force=False):
 @app.route("/api/auth/status")
 def auth_status():
     return jsonify(provider_status())
+
+
+# ---------- pomodoro ----------
+
+# What the widget is allowed to ask for. Anything else is a 400 rather than a
+# silent no-op, so a typo in the frontend shows up as a bug instead of a button
+# that quietly does nothing.
+POMODORO_ACTIONS = ("start", "pause", "reset", "skip", "settings", "clear_today")
+
+
+def pomodoro_timer(create=False):
+    """
+    This session's pomodoro timer, made from the defaults on first use.
+
+    The store is per browser, so two windows keep their own count. An idle session
+    is evicted once there are more than the cap, and since every timer here has a
+    running round to lose, the least recently used one is dropped rather than a
+    random one.
+    """
+    sid = session_id()
+    with _POMODORO_LOCK:
+        timer = _POMODORO_STORE.get(sid)
+        if timer is None and create:
+            _prune_pomodoro_store()
+            timer = Pomodoro(settings=settings_from_env())
+            _POMODORO_STORE[sid] = timer
+        if timer is not None:
+            _POMODORO_STORE[sid] = timer  # reinsert, so the eviction takes the oldest
+    return timer
+
+
+def _prune_pomodoro_store():
+    """Drop the oldest timers until there is room for one more."""
+    while len(_POMODORO_STORE) >= MAX_POMODORO_SESSIONS:
+        del _POMODORO_STORE[next(iter(_POMODORO_STORE))]
+
+
+def _pomodoro_settings(body, timer):
+    """
+    The durations and goal from a settings update, on top of what is in effect.
+
+    The widget sends the whole form, but a partial body is merged rather than
+    rejected, so a client that only knows about one field cannot reset the rest
+    to defaults.
+    """
+    settings = dict(timer.settings)
+    for name, current in settings.items():
+        submitted = body.get(name, current)
+        settings[name] = current if submitted in (None, "") else submitted
+    return clean_settings(settings)
+
+
+@app.route("/api/pomodoro", methods=["GET", "POST"])
+def pomodoro_api():
+    if request.method == "GET":
+        return jsonify(pomodoro_timer(create=True).snapshot())
+
+    if not request.is_json:
+        return jsonify({"error": "Send this as JSON."}), 415
+
+    # The same token as the login form. A round is not as sensitive as a
+    # credential, but the cookie authorizes the request, so a cross-site form
+    # should not be able to start and stop someone's focus time.
+    body = request.get_json(silent=True) or {}
+    if not csrf_valid(body.get("csrf_token")):
+        return jsonify({"error": "This page expired. Reload and try again."}), 400
+
+    action = body.get("action")
+    if action not in POMODORO_ACTIONS:
+        return jsonify({
+            "error": "Unknown action %r. Use one of: %s."
+            % (action, ", ".join(POMODORO_ACTIONS))
+        }), 400
+
+    timer = pomodoro_timer(create=True)
+    if action == "start":
+        return jsonify(timer.start())
+    if action == "pause":
+        return jsonify(timer.pause())
+    if action == "reset":
+        return jsonify(timer.reset())
+    if action == "skip":
+        return jsonify(timer.skip())
+    if action == "clear_today":
+        return jsonify(timer.clear_today())
+    return jsonify(timer.update_settings(_pomodoro_settings(body, timer)))
 
 
 def github_redirect_uri():
@@ -2041,8 +2728,18 @@ def leetcode_auth():
     return redirect("/")
 
 
+def forget_pomodoro(sid=None):
+    """Throw away a session's timer, which signing out should do."""
+    sid = sid if sid is not None else session.get(SID_SESSION_KEY)
+    if not sid:
+        return
+    with _POMODORO_LOCK:
+        _POMODORO_STORE.pop(sid, None)
+
+
 @app.route("/logout", methods=["GET", "POST"])
 def logout():
+    forget_pomodoro()
     forget_credentials()
     session.clear()
     _INTEGRATIONS.clear()

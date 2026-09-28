@@ -1,3 +1,4 @@
+import os
 import re
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -6,8 +7,15 @@ from urllib.parse import parse_qs, urlparse
 
 from flask import session as flask_session
 
+# Set before the app is imported, because importing it reads .env. Without this
+# the suite picks up the developer's real credentials and makes live
+# authenticated calls, so the result of a test run depends on what is in their
+# .env and on having a network connection.
+os.environ['DAILY_DRIVER_SKIP_DOTENV'] = '1'
+
 import app as app_module
 from app import app
+from pomodoro import DEFAULTS, LIMITS, HISTORY_DAYS
 
 
 def form_token(client):
@@ -99,6 +107,9 @@ class EnvFileTests(unittest.TestCase):
             )
             path = handle.name
 
+        # This module sets the opt-out so the suite ignores the real .env, which
+        # is the opposite of what this test is checking.
+        previous_skip = os.environ.pop('DAILY_DRIVER_SKIP_DOTENV', None)
         previous = os.environ.get('EXISTING')
         os.environ['EXISTING'] = 'from-environment'
         try:
@@ -108,6 +119,8 @@ class EnvFileTests(unittest.TestCase):
             self.assertEqual(os.environ['SPACED'], 'spaced')
             self.assertEqual(os.environ['EXISTING'], 'from-environment')
         finally:
+            if previous_skip is not None:
+                os.environ['DAILY_DRIVER_SKIP_DOTENV'] = previous_skip
             if previous is None:
                 os.environ.pop('EXISTING', None)
             else:
@@ -115,6 +128,35 @@ class EnvFileTests(unittest.TestCase):
             for key in ('QUOTED', 'EXPORTED', 'SPACED'):
                 os.environ.pop(key, None)
             os.unlink(path)
+
+    def test_opt_out_ignores_the_file_entirely(self):
+        import os
+        import tempfile
+
+        with tempfile.NamedTemporaryFile('w', suffix='.env', delete=False) as handle:
+            handle.write('SHOULD_NOT_BE_LOADED=nope\n')
+            path = handle.name
+
+        try:
+            with mock.patch.dict(os.environ, {'DAILY_DRIVER_SKIP_DOTENV': '1'}):
+                self.assertFalse(app_module.load_env_file(path))
+            self.assertNotIn('SHOULD_NOT_BE_LOADED', os.environ)
+        finally:
+            os.environ.pop('SHOULD_NOT_BE_LOADED', None)
+            os.unlink(path)
+
+    def test_suite_does_not_inherit_real_credentials(self):
+        """
+        Importing the app runs load_env_file, so without the opt-out above the
+        suite would pick up the developer's own .env and make live
+        authenticated calls, making the run depend on their accounts.
+        """
+        leaked = sorted(
+            key for key, value in os.environ.items()
+            if value and (key.startswith('GITHUB_') or key.startswith('LEETCODE_')
+                          or key == 'SELF_HOSTED_SITES')
+        )
+        self.assertEqual(leaked, [], 'test process inherited real settings: ' + ', '.join(leaked))
 
     def test_missing_file_is_not_an_error(self):
         self.assertFalse(app_module.load_env_file('/nonexistent/path/.env'))
@@ -1035,6 +1077,430 @@ class SitesEndpointTests(unittest.TestCase):
                 self.client.get('/api/sites')
                 self.client.get('/api/sites?refresh=1')
                 self.assertEqual(checks.call_count, 2)
+
+
+def dashboard_token(client):
+    """Load the dashboard and return the form token it hands to the timer."""
+    body = client.get('/').get_data(as_text=True)
+    match = re.search(r'window\.POMODORO_CSRF = "([^"]+)"', body)
+    if match is None:
+        raise AssertionError('the dashboard is missing the pomodoro form token')
+    return match.group(1)
+
+
+def session_cookie(client):
+    """The signed session cookie a browser is holding, to hand to a second tab."""
+    return client.get_cookie(app_module.app.config['SESSION_COOKIE_NAME']).value
+
+
+# A fixed clock, so a 25 minute round can be run to its end without waiting for
+# one. 2026-03-14T09:00:00Z, a Saturday.
+POMODORO_NOW = 1773478800.0
+POMODORO_DAY = 86400.0
+
+
+class PomodoroSettingsTests(unittest.TestCase):
+    """The lengths are hand written in .env, so they have to survive typos."""
+
+    def test_defaults_come_from_the_environment(self):
+        with mock.patch.dict('os.environ', {
+            'POMODORO_WORK_MINUTES': '50',
+            'POMODORO_SHORT_BREAK_MINUTES': '10',
+            'POMODORO_LONG_BREAK_MINUTES': '30',
+            'POMODORO_ROUNDS': '3',
+            'POMODORO_GOAL': '6',
+        }):
+            settings = app_module.settings_from_env()
+        self.assertEqual(settings, {
+            'work_minutes': 50,
+            'short_break_minutes': 10,
+            'long_break_minutes': 30,
+            'rounds': 3,
+            'daily_goal': 6,
+        })
+
+    def test_an_unset_value_falls_back_to_the_default(self):
+        with mock.patch.dict('os.environ', {'POMODORO_WORK_MINUTES': '50'}, clear=False):
+            os.environ.pop('POMODORO_SHORT_BREAK_MINUTES', None)
+            settings = app_module.settings_from_env()
+        self.assertEqual(settings['work_minutes'], 50)
+        self.assertEqual(settings['short_break_minutes'], DEFAULTS['short_break_minutes'])
+
+    def test_a_blank_or_broken_value_does_not_discard_the_rest(self):
+        with mock.patch.dict('os.environ', {
+            'POMODORO_WORK_MINUTES': 'not a number',
+            'POMODORO_SHORT_BREAK_MINUTES': '',
+            'POMODORO_LONG_BREAK_MINUTES': '20',
+        }):
+            settings = app_module.settings_from_env()
+        self.assertEqual(settings['work_minutes'], DEFAULTS['work_minutes'])
+        self.assertEqual(settings['short_break_minutes'], DEFAULTS['short_break_minutes'])
+        self.assertEqual(settings['long_break_minutes'], 20)
+
+    def test_a_value_beyond_the_range_is_clamped(self):
+        settings = app_module.clean_settings({'work_minutes': 900, 'rounds': 99})
+        self.assertEqual(settings['work_minutes'], LIMITS['work_minutes'][1])
+        self.assertEqual(settings['rounds'], LIMITS['rounds'][1])
+
+    def test_a_focus_round_cannot_be_set_to_nothing(self):
+        self.assertEqual(app_module.clean_settings({'work_minutes': 0})['work_minutes'], 1)
+
+    def test_a_break_can_be_set_to_nothing(self):
+        # A skip straight into the next focus round is a legitimate choice.
+        cleaned = app_module.clean_settings({'short_break_minutes': 0})
+        self.assertEqual(cleaned['short_break_minutes'], 0)
+
+    def test_a_partial_update_keeps_the_other_settings(self):
+        cleaned = app_module.clean_settings({'work_minutes': 45})
+        self.assertEqual(cleaned['work_minutes'], 45)
+        self.assertEqual(cleaned['rounds'], DEFAULTS['rounds'])
+
+    def test_an_unknown_setting_is_dropped(self):
+        self.assertNotIn('coffee', app_module.clean_settings({'coffee': 3}))
+
+
+class PomodoroTimerTests(unittest.TestCase):
+    def setUp(self):
+        self.now = POMODORO_NOW
+        self.timer = app_module.Pomodoro(now=self.now)
+
+    def later(self, seconds):
+        self.now += seconds
+        return self.now
+
+    def test_a_fresh_timer_waits_on_a_full_focus_round(self):
+        state = self.timer.snapshot(self.now)
+        self.assertEqual(state['mode'], 'focus')
+        self.assertFalse(state['running'])
+        self.assertEqual(state['remaining'], 25 * 60)
+        self.assertEqual(state['total'], 25 * 60)
+        self.assertEqual(state['rounds_today'], 0)
+        self.assertFalse(state['goal_met'])
+
+    def test_the_remaining_time_comes_from_the_clock(self):
+        self.timer.start(self.now)
+        self.assertEqual(self.timer.snapshot(self.now)['remaining'], 1500)
+        self.assertEqual(self.timer.snapshot(self.later(90))['remaining'], 1410)
+        self.assertEqual(self.timer.snapshot(self.later(10))['remaining'], 1400)
+
+    def test_a_round_that_ran_out_is_credited_on_the_next_read(self):
+        self.timer.start(self.now)
+        state = self.timer.snapshot(self.later(25 * 60 + 1))
+        self.assertEqual(state['mode'], 'short_break')
+        self.assertFalse(state['running'])
+        self.assertEqual(state['remaining'], 5 * 60)
+        self.assertEqual(state['rounds_today'], 1)
+        self.assertEqual(state['focused_minutes_today'], 25)
+        self.assertEqual(state['round'], 1)
+        self.assertIn('short break', state['notice'])
+
+    def test_a_read_after_a_long_gap_advances_only_one_round(self):
+        # Otherwise a laptop that slept through the afternoon would come back to a
+        # queue of breaks, and the day's count would be a guess.
+        self.timer.start(self.now)
+        state = self.timer.snapshot(self.later(6 * 3600))
+        self.assertEqual(state['mode'], 'short_break')
+        self.assertEqual(state['rounds_today'], 1)
+
+    def test_pausing_keeps_what_is_left(self):
+        self.timer.start(self.now)
+        state = self.timer.pause(self.later(300))
+        self.assertFalse(state['running'])
+        self.assertEqual(state['remaining'], 1500 - 300)
+
+    def test_resuming_continues_from_the_remainder(self):
+        self.timer.start(self.now)
+        self.timer.pause(self.later(300))
+        state = self.timer.start(self.later(60))
+        self.assertTrue(state['running'])
+        self.assertEqual(state['remaining'], 1200)
+        self.assertEqual(state['total'], 1500)
+
+    def test_a_paused_round_keeps_its_remainder_however_long_you_wait(self):
+        self.timer.start(self.now)
+        self.timer.pause(self.later(300))
+        # Pausing stops the clock: the round does not quietly run out from under
+        # a closed tab, so nothing is credited.
+        state = self.timer.snapshot(self.later(3600))
+        self.assertEqual(state['remaining'], 1200)
+        self.assertEqual(state['rounds_today'], 0)
+        self.assertEqual(state['mode'], 'focus')
+
+    def test_resetting_restarts_the_current_round(self):
+        self.timer.start(self.now)
+        self.timer.skip(self.later(100))
+        state = self.timer.reset(self.later(100))
+        self.assertEqual(state['mode'], 'short_break')
+        self.assertEqual(state['remaining'], 5 * 60)
+        self.assertFalse(state['running'])
+
+    def test_resetting_a_round_that_ran_out_moves_the_cycle_on(self):
+        self.timer.start(self.now)
+        state = self.timer.reset(self.later(25 * 60 + 1))
+        self.assertEqual(state['mode'], 'short_break')
+        self.assertEqual(state['rounds_today'], 1)
+
+    def test_skipping_a_focus_round_credits_it(self):
+        self.timer.start(self.now)
+        state = self.timer.skip(self.later(10))
+        self.assertEqual(state['mode'], 'short_break')
+        self.assertEqual(state['rounds_today'], 1)
+        self.assertEqual(state['focus_seconds_today'], 25 * 60)
+        self.assertFalse(state['running'])
+
+    def test_skipping_a_break_returns_to_focus(self):
+        self.timer.start(self.now)
+        self.timer.skip(self.later(10))
+        state = self.timer.skip(self.later(10))
+        self.assertEqual(state['mode'], 'focus')
+        self.assertEqual(state['remaining'], 25 * 60)
+        self.assertEqual(state['rounds_today'], 1)
+
+    def test_the_last_round_of_a_group_earns_a_long_break(self):
+        timer = app_module.Pomodoro(settings={'rounds': 2}, now=self.now)
+        timer.start(self.now)
+        self.assertEqual(timer.skip(self.now)['mode'], 'short_break')
+        self.assertEqual(timer.skip(self.now)['mode'], 'focus')
+        self.assertEqual(timer.skip(self.now)['mode'], 'long_break')
+        self.assertEqual(timer.skip(self.now)['mode'], 'focus')
+        self.assertEqual(timer.snapshot(self.now)['rounds_today'], 2)
+
+    def test_the_group_length_is_its_own_setting(self):
+        timer = app_module.Pomodoro(settings={'rounds': 1}, now=self.now)
+        timer.start(self.now)
+        state = timer.skip(self.now)
+        self.assertEqual(state['mode'], 'long_break')
+
+    def test_new_settings_stop_the_round_in_progress(self):
+        self.timer.start(self.now)
+        state = self.timer.update_settings({'work_minutes': 50}, self.later(600))
+        self.assertFalse(state['running'])
+        self.assertEqual(state['remaining'], 50 * 60)
+        self.assertEqual(state['settings']['work_minutes'], 50)
+
+    def test_new_settings_leave_the_day_alone(self):
+        self.timer.start(self.now)
+        self.timer.skip(self.later(10))
+        state = self.timer.update_settings({'short_break_minutes': 1}, self.later(10))
+        self.assertEqual(state['rounds_today'], 1)
+        self.assertEqual(state['remaining'], 60)
+
+    def test_a_zero_length_break_does_not_stick(self):
+        timer = app_module.Pomodoro(settings={'short_break_minutes': 0}, now=self.now)
+        timer.start(self.now)
+        state = timer.skip(self.now)
+        self.assertEqual(state['mode'], 'short_break')
+        self.assertEqual(state['remaining'], 0)
+        self.assertEqual(timer.start(self.now)['mode'], 'focus')
+
+    def test_the_day_rolls_over_and_the_finished_one_is_kept(self):
+        self.timer.start(self.now)
+        state = self.timer.snapshot(self.later(2 * POMODORO_DAY))
+        self.assertEqual(state['rounds_today'], 0)
+        self.assertEqual(state['focused_minutes_today'], 0)
+        self.assertEqual([day['rounds'] for day in state['history']], [1])
+
+    def test_a_round_that_ends_after_midnight_belongs_to_the_day_it_was_worked(self):
+        self.timer.start(self.now)
+        # 12 minutes before midnight, then read two minutes after it.
+        state = self.timer.snapshot(self.later(12 * 3600 + 8 * 3600))
+        self.assertEqual([day['rounds'] for day in state['history']], [1])
+        self.assertEqual(state['rounds_today'], 0)
+        self.assertNotEqual(state['date'], state['history'][0]['date'])
+
+    def test_the_history_keeps_a_week(self):
+        timer = app_module.Pomodoro(now=self.now)
+        for _ in range(HISTORY_DAYS + 2):
+            timer.snapshot(self.later(POMODORO_DAY))
+        self.assertEqual(len(timer.snapshot(self.now)['history']), HISTORY_DAYS)
+
+    def test_a_clock_that_steps_backwards_does_not_repeat_a_day(self):
+        tomorrow = self.now + POMODORO_DAY
+        for moment in (tomorrow, self.now, tomorrow, tomorrow + POMODORO_DAY):
+            self.timer.snapshot(moment)
+        history = self.timer.snapshot(tomorrow + POMODORO_DAY)['history']
+        self.assertEqual([day['date'] for day in history], ['2026-03-14', '2026-03-15'])
+
+    def test_the_goal_is_met_when_the_count_reaches_it(self):
+        timer = app_module.Pomodoro(settings={'daily_goal': 2}, now=self.now)
+        timer.start(self.now)
+        self.assertFalse(timer.skip(self.now)['goal_met'])
+        timer.skip(self.now)
+        self.assertTrue(timer.skip(self.now)['goal_met'])
+
+    def test_a_goal_of_zero_is_never_met(self):
+        timer = app_module.Pomodoro(settings={'daily_goal': 0}, now=self.now)
+        self.assertFalse(timer.snapshot(self.now)['goal_met'])
+
+    def test_clearing_today_keeps_the_cycle(self):
+        self.timer.start(self.now)
+        self.timer.skip(self.later(10))
+        state = self.timer.clear_today(self.later(10))
+        self.assertEqual(state['rounds_today'], 0)
+        self.assertEqual(state['focused_minutes_today'], 0)
+        self.assertEqual(state['mode'], 'short_break')
+        self.assertEqual(state['round'], 1)
+
+    def test_the_payload_is_json_shaped(self):
+        state = self.timer.snapshot(self.now)
+        self.assertEqual(state['label'], 'Focus')
+        self.assertFalse(state['is_break'])
+        self.assertEqual(state['cycle_length'], 4)
+        self.assertEqual(state['remaining_at'], self.now)
+        self.assertEqual(state['history'], [])
+        self.assertEqual(state['settings'], DEFAULTS)
+
+
+class PomodoroEndpointTests(unittest.TestCase):
+    def setUp(self):
+        app_module.app.config['TESTING'] = True
+        app_module._POMODORO_STORE.clear()
+        self.client = app_module.app.test_client()
+        self.token = dashboard_token(self.client)
+
+    def tearDown(self):
+        app_module._POMODORO_STORE.clear()
+
+    def post(self, client=None, **body):
+        # The token is the default, so a test that wants a bad one can pass its own.
+        return (client or self.client).post(
+            '/api/pomodoro', json=dict({'csrf_token': self.token}, **body)
+        )
+
+    def test_the_timer_is_created_on_the_first_read(self):
+        payload = self.client.get('/api/pomodoro').get_json()
+        self.assertEqual(payload['mode'], 'focus')
+        self.assertEqual(payload['remaining'], 1500)
+        self.assertEqual(payload['settings']['work_minutes'], 25)
+        self.assertEqual(len(app_module._POMODORO_STORE), 1)
+
+    def test_the_page_hands_the_widget_a_working_token(self):
+        response = self.post(action='start')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()['running'])
+
+    def test_a_post_without_the_form_token_is_rejected(self):
+        response = self.client.post('/api/pomodoro', json={'action': 'start'})
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(self.client.get('/api/pomodoro').get_json()['running'])
+
+    def test_a_post_with_a_forged_form_token_is_rejected(self):
+        response = self.post(csrf_token='not-the-token', action='start')
+        self.assertEqual(response.status_code, 400)
+
+    def test_a_form_post_is_refused_rather_than_guessed_at(self):
+        response = self.client.post('/api/pomodoro', data={'action': 'start'})
+        self.assertEqual(response.status_code, 415)
+
+    def test_an_unknown_action_is_rejected(self):
+        response = self.post(action='rewind')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('rewind', response.get_json()['error'])
+
+    def test_the_environment_sets_the_defaults_for_a_new_timer(self):
+        with mock.patch.dict('os.environ', {'POMODORO_WORK_MINUTES': '50'}):
+            payload = self.client.get('/api/pomodoro').get_json()
+        self.assertEqual(payload['total'], 50 * 60)
+
+    def test_each_action_reports_the_new_state(self):
+        self.post(action='start')
+        paused = self.post(action='pause').get_json()
+        self.assertFalse(paused['running'])
+        self.assertEqual(paused['remaining'], 1500)
+
+        self.post(action='start')
+        skipped = self.post(action='skip').get_json()
+        self.assertEqual(skipped['mode'], 'short_break')
+        self.assertEqual(skipped['rounds_today'], 1)
+
+    def test_settings_are_kept_for_the_next_read(self):
+        self.post(action='settings', work_minutes='45', short_break_minutes='8',
+                  long_break_minutes='20', rounds='3', daily_goal='5')
+        payload = self.client.get('/api/pomodoro').get_json()
+        self.assertEqual(payload['settings'], {
+            'work_minutes': 45,
+            'short_break_minutes': 8,
+            'long_break_minutes': 20,
+            'rounds': 3,
+            'daily_goal': 5,
+        })
+        self.assertEqual(payload['total'], 45 * 60)
+
+    def test_a_partial_settings_post_keeps_the_other_lengths(self):
+        self.post(action='settings', work_minutes='45', short_break_minutes='8')
+        settings = self.post(action='settings', work_minutes='30').get_json()['settings']
+        self.assertEqual(settings['work_minutes'], 30)
+        self.assertEqual(settings['short_break_minutes'], 8)
+
+    def test_an_empty_field_does_not_zero_a_length(self):
+        self.post(action='settings', work_minutes='45')
+        settings = self.post(action='settings', work_minutes='').get_json()['settings']
+        self.assertEqual(settings['work_minutes'], 45)
+
+    def test_junk_in_a_settings_post_is_clamped_not_obeyed(self):
+        settings = self.post(action='settings', work_minutes='soon',
+                             daily_goal='999').get_json()['settings']
+        self.assertEqual(settings['work_minutes'], DEFAULTS['work_minutes'])
+        self.assertEqual(settings['daily_goal'], LIMITS['daily_goal'][1])
+
+    def test_clearing_today_zeroes_the_count(self):
+        self.post(action='start')
+        self.post(action='skip')
+        payload = self.post(action='clear_today').get_json()
+        self.assertEqual(payload['rounds_today'], 0)
+        self.assertEqual(payload['focused_minutes_today'], 0)
+
+    def test_each_browser_keeps_its_own_timer(self):
+        other = app_module.app.test_client()
+        other_token = dashboard_token(other)
+        self.post(action='settings', work_minutes='45')
+        other.post('/api/pomodoro', json={'action': 'settings', 'work_minutes': 15,
+                                          'csrf_token': other_token})
+        self.assertEqual(self.client.get('/api/pomodoro').get_json()['total'], 45 * 60)
+        self.assertEqual(other.get('/api/pomodoro').get_json()['total'], 15 * 60)
+
+    def test_a_second_tab_of_the_same_browser_shares_the_timer(self):
+        self.client.get('/api/pomodoro')
+        other = app_module.app.test_client()
+        other.set_cookie(app_module.app.config['SESSION_COOKIE_NAME'], session_cookie(self.client))
+        self.post(action='start')
+        self.assertTrue(other.get('/api/pomodoro').get_json()['running'])
+
+    def test_another_browser_gets_its_own_timer(self):
+        self.client.get('/api/pomodoro')
+        other = app_module.app.test_client()
+        self.assertEqual(other.get('/api/pomodoro').get_json()['rounds_today'], 0)
+
+    def test_signing_out_drops_the_timer(self):
+        self.post(action='start')
+        self.assertEqual(len(app_module._POMODORO_STORE), 1)
+        self.client.get('/logout')
+        self.assertEqual(len(app_module._POMODORO_STORE), 0)
+
+    def test_the_store_is_capped(self):
+        cap = app_module.MAX_POMODORO_SESSIONS
+        for _ in range(cap + 5):
+            client = app_module.app.test_client()
+            client.get('/api/pomodoro')
+        self.assertEqual(len(app_module._POMODORO_STORE), cap)
+
+    def test_the_least_recently_used_timer_is_the_one_dropped(self):
+        clients = [app_module.app.test_client() for _ in range(app_module.MAX_POMODORO_SESSIONS)]
+        for client in clients:
+            client.get('/api/pomodoro')
+        first = client_sid(clients[0])
+        # Reading the timer again is what makes this one the newest.
+        clients[0].get('/api/pomodoro')
+
+        app_module.app.test_client().get('/api/pomodoro')
+        self.assertNotIn(first, app_module._POMODORO_STORE)
+
+    def test_the_timer_does_not_need_a_provider(self):
+        # No GitHub, no LeetCode, no sites: the widget is its own thing.
+        with mock.patch.object(app_module, 'github_integration', return_value=None), \
+                mock.patch.object(app_module, 'leetcode_integration', return_value=None):
+            payload = self.client.get('/api/pomodoro').get_json()
+        self.assertEqual(payload['mode'], 'focus')
 
 
 if __name__ == '__main__':

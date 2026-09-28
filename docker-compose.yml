@@ -1,0 +1,95 @@
+# ═══════════════════════════════════════════════════
+# DAILY DRIVER DASHBOARD — MacBook Air
+# ═══════════════════════════════════════════════════
+#
+# USAGE:
+#   Start        → docker compose up -d --build
+#   Rebuild      → docker compose up -d --build   (code changed)
+#   Logs         → docker compose logs -f
+#   Stop         → docker compose down
+#   Run tests    → docker compose run --rm tests
+#
+# OPEN → http://localhost:5000
+#
+# BEFORE STARTING:
+#   Create .env from .env.example. Port 5000 is deliberate: the GitHub OAuth
+#   app has http://localhost:5000/oauth/github/callback registered, so
+#   changing the port means re-registering that callback URL.
+#
+#   This joins the network of the other stack so SELF_HOSTED_SITES can address
+#   those containers by name. Start that stack first, or create the network by
+#   hand once:
+#     docker network create home-server_self-hosted
+# ═══════════════════════════════════════════════════
+
+name: my-daily-driver
+
+services:
+  daily-driver:
+    build: .
+    image: my-daily-driver:local
+    container_name: daily-driver
+
+    # Loopback on the host side: the dashboard is not published to the LAN.
+    # The container itself must listen on 0.0.0.0, because Docker's published
+    # port connects to the container's own interface, not its loopback.
+    ports:
+      - "127.0.0.1:5000:5000"
+
+    env_file:
+      - .env
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "5000"
+      TZ: "Asia/Kolkata"
+
+    networks:
+      - self-hosted
+
+    restart: unless-stopped
+
+    # State is in memory, so there is nothing to persist. A read-only root
+    # filesystem means a token cannot be written to disk even if this process
+    # is ever compromised.
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request as u, sys; sys.exit(0 if u.urlopen('http://127.0.0.1:5000/api/auth/status', timeout=4).status == 200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Tests run against the working tree, not the copy baked into the image, so a
+  # failing test does not need a rebuild first. Behind a profile so it stays
+  # out of `docker compose up`.
+  tests:
+    profiles: ["test"]
+    build: .
+    image: my-daily-driver:local
+    working_dir: /src
+    volumes:
+      - .:/src
+    command: ["python", "-m", "unittest", "test_dashboard"]
+    environment:
+      TZ: "Asia/Kolkata"
+    # The suite mocks every request, so it needs no network at all. Saying so
+    # explicitly also stops compose from creating a default network for this
+    # project that nothing else would use.
+    network_mode: none
+
+networks:
+  self-hosted:
+    # The other stack's network, named <project>_<network> by compose.
+    external: true
+    name: home-server_self-hosted

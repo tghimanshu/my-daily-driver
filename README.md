@@ -18,6 +18,7 @@ place to bring all your information together and make it easily accessible.
   a website or a PWA (Progressive Web App).
 - **Real-time Updates**: Get real-time updates from your connected services.
 - **Task Management**: Keep track of your tasks and to-dos in one place.
+- **Focus Timer**: A pomodoro timer with your own round and break lengths.
 - **Keyboard Friendly**: To all our keyboard warriors, navigate and interact with your dashboard using keyboard shortcuts for a seamless experience.
 
 ## Current Integrations
@@ -48,6 +49,45 @@ Failures are reported with the reason rather than a bare red dot:
 `responded without 'healthy'`. TLS certificates are verified, so a self-signed
 certificate is reported as a TLS problem instead of being silently accepted.
 
+## Focus timer
+
+The pomodoro widget counts focus rounds and the breaks between them, and puts the
+day's total up in the pulse row next to your commits and solves. The lengths are
+yours to set, in the widget or in `.env`:
+
+```sh
+POMODORO_WORK_MINUTES=25
+POMODORO_SHORT_BREAK_MINUTES=5
+POMODORO_LONG_BREAK_MINUTES=15
+POMODORO_ROUNDS=4        # focus rounds before a long break
+POMODORO_GOAL=8          # focus rounds a day is aiming for
+```
+
+`.env` sets the default for a browser that has not touched the settings yet.
+Saving in the widget overrides it for that browser only, because how long your
+rounds are is a personal preference rather than a deployment setting. A blank or
+mistyped value falls back to the built-in default instead of stopping the timer,
+and anything past the sensible range is clamped, so a stray zero cannot leave you
+with a focus round of no length at all.
+
+The timer runs on the server rather than in the page, which is what lets it
+survive a reload, a closed tab or a second tab: the remaining time is recomputed
+from the clock on every read, so a laptop that slept through a round does not lose
+it. The browser only ticks the display and rings a short chime when a round ends,
+then asks the server what comes next. That request is also where an unattended
+round is credited, and only one round advances per read, so coming back after the
+afternoon does not hand you a queue of breaks.
+
+A round in progress is never rescaled under you: changing a length stops the
+current round so the next one starts at the new length. *Skip* ends a round early
+and counts it, *Reset* puts the current one back to the start, and *Clear today*
+zeroes the day's numbers without touching the cycle. Focus time is credited when
+a round ends, not while it runs, so the total is made of rounds you finished.
+
+The counters are in memory, like the credentials, so restarting the server starts
+a new day. The week strip under the ring is the same: it fills in as days pass
+rather than being read from anywhere.
+
 ## Running it
 
 ```sh
@@ -67,6 +107,45 @@ Werkzeug debugger is a remote shell for anyone who can reach it. `HOST` and
 non-loopback `HOST` prints a warning.
 
 `python -m unittest test_dashboard` runs the test suite.
+
+## Running it with Docker
+
+```sh
+docker compose up -d --build     # http://localhost:5000
+docker compose logs -f
+docker compose down
+docker compose run --rm tests    # test suite against the working tree
+```
+
+Same `.env`, same port, same URLs, so nothing about the browser setup changes.
+Three things are worth knowing about the container.
+
+**Start the other stack first.** The dashboard joins `home-server_self-hosted`,
+the network of the other compose file, so `SELF_HOSTED_SITES` can address those
+containers by name (`http://it-tools` rather than `http://localhost:8080`) and
+skip a hop through the host. Compose needs that network to exist, so bring up
+the other stack first, or create it once by hand with
+`docker network create home-server_self-hosted`. The other stack adopts an
+existing network of that name without complaint, so this does not lock it out.
+For anything not on that network, `host.docker.internal:<port>` reaches a
+published port.
+
+**Do not raise the worker count.** Credentials live in an in-process store, so
+a second gunicorn worker would not see the session that just finished an OAuth
+login and the dashboard would report "not connected" straight after a
+successful sign-in. The compose file runs one worker with threads; that is a
+correctness requirement, not a default. The same applies to `docker compose up
+--scale daily-driver=2`, which will look like it works and then fail login.
+
+**It is locked down, because it holds tokens.** Non-root, `cap_drop: ALL`,
+`no-new-privileges`, and a read-only root filesystem, since there is no state
+to write. The port is published to host loopback only, so the dashboard is not
+reachable from your LAN even though the container listens on `0.0.0.0` — that
+binding is required, as Docker's published port connects to the container's
+own interface and never its loopback.
+
+A container restart still drops browser logins, exactly like restarting the
+server locally, because the credential store is in memory.
 
 ### About your credentials
 
