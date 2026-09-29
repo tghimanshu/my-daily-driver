@@ -31,11 +31,18 @@ EXPOSE 5000
 # in-process store, so a second worker would not see the session that just
 # completed an OAuth login and the dashboard would report "not connected" after
 # a successful sign-in. Use threads for concurrency instead.
+#
+# --no-control-socket because the default path is $HOME/.gunicorn/gunicorn.ctl,
+# and the compose files give this container a read-only root filesystem with only
+# /tmp writable. Without it every boot logs a "Control server error: read-only
+# file system". The socket is for an external process to signal the master, and
+# nothing here uses one.
 CMD ["gunicorn", \
      "--bind", "0.0.0.0:5000", \
      "--workers", "1", \
      "--threads", "8", \
      "--timeout", "60", \
+     "--no-control-socket", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
      "app:app"]

@@ -15,6 +15,7 @@ __pycache__
 # Not needed at run time.
 test_dashboard.py
 Dockerfile
-docker-compose.yml
+docker-compose*.yml
 README.md
+low-level-design.md
 .DS_Store

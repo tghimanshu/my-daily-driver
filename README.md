@@ -110,6 +110,51 @@ non-loopback `HOST` prints a warning.
 
 ## Running it with Docker
 
+Two compose files, for two jobs. `docker-compose.home-server.yml` is the one you
+actually want; `docker-compose.yml` is for running the dashboard on its own,
+outside the stack.
+
+### As part of the home server stack
+
+The home server compose file pulls in
+`docker-compose.home-server.yml` with an `include`, so the dashboard is a
+service of that project rather than a stack of its own. One command runs the
+whole thing:
+
+```sh
+cd ../home-server
+docker compose up -d --build daily-driver   # https://dashboard.home
+docker compose logs -f daily-driver
+docker compose up -d --build daily-driver   # after changing the app
+```
+
+Compose resolves relative paths inside an included file against that file's own
+directory, so the build context and the `.env` it reads are both this folder.
+Nothing needs copying between the two repos, and the two compose files never
+have to agree on anything.
+
+What the include buys you, beyond convenience:
+
+- **One network, no published port.** The service joins the home server
+  project's default network, which is the one Caddy is on, so Caddy proxies to
+  `daily-driver:5000` directly. Nothing binds a port on the LAN, so the
+  dashboard is only reachable over Caddy's certificate, like every other app in
+  the stack. For the same reason `SELF_HOSTED_SITES` can address the other
+  containers by name (`http://it-tools`) and skip a hop through the host.
+- **One `docker compose ps`.** Stopping the stack stops the dashboard with it,
+  rather than leaving an orphan pointing at a network that is gone.
+
+The GitHub OAuth app needs its callback URL registered as
+`https://dashboard.home/oauth/github/callback`, which the compose file sets in
+`GITHUB_REDIRECT_URI`. It is set explicitly rather than left to Flask's
+`url_for` because nothing in the app trusts Caddy's `X-Forwarded-Proto`, so a
+generated URL would come out as `http`.
+
+Do not run `docker compose -f docker-compose.home-server.yml up` on its own.
+There is no Caddy to serve it and no network to sit on; it is a fragment.
+
+### On its own
+
 ```sh
 docker compose up -d --build     # http://localhost:5000
 docker compose logs -f
@@ -118,31 +163,34 @@ docker compose run --rm tests    # test suite against the working tree
 ```
 
 Same `.env`, same port, same URLs, so nothing about the browser setup changes.
-Three things are worth knowing about the container.
+Two things are worth knowing about this one.
 
-**Start the other stack first.** The dashboard joins `home-server_self-hosted`,
-the network of the other compose file, so `SELF_HOSTED_SITES` can address those
-containers by name (`http://it-tools` rather than `http://localhost:8080`) and
-skip a hop through the host. Compose needs that network to exist, so bring up
-the other stack first, or create it once by hand with
-`docker network create home-server_self-hosted`. The other stack adopts an
-existing network of that name without complaint, so this does not lock it out.
-For anything not on that network, `host.docker.internal:<port>` reaches a
-published port.
+**Start the other stack first.** This file attaches to the home server stack's
+network, `home-server_default`, so `SELF_HOSTED_SITES` can address those
+containers by name. Compose needs that network to exist, so bring up the other
+stack first, or create it once by hand with
+`docker network create home-server_default`. The other stack adopts an existing
+network of that name without complaint, so this does not lock it out. For
+anything not on that network, `host.docker.internal:<port>` reaches a published
+port.
+
+**It is on loopback only.** The port is published as `127.0.0.1:5000`, so the
+dashboard is not reachable from your LAN, even though the container listens on
+`0.0.0.0` — that binding is required, as Docker's published port connects to
+the container's own interface and never its loopback.
+
+### Either way
 
 **Do not raise the worker count.** Credentials live in an in-process store, so
 a second gunicorn worker would not see the session that just finished an OAuth
 login and the dashboard would report "not connected" straight after a
-successful sign-in. The compose file runs one worker with threads; that is a
+successful sign-in. The compose files run one worker with threads; that is a
 correctness requirement, not a default. The same applies to `docker compose up
 --scale daily-driver=2`, which will look like it works and then fail login.
 
 **It is locked down, because it holds tokens.** Non-root, `cap_drop: ALL`,
 `no-new-privileges`, and a read-only root filesystem, since there is no state
-to write. The port is published to host loopback only, so the dashboard is not
-reachable from your LAN even though the container listens on `0.0.0.0` — that
-binding is required, as Docker's published port connects to the container's
-own interface and never its loopback.
+to write.
 
 A container restart still drops browser logins, exactly like restarting the
 server locally, because the credential store is in memory.
@@ -170,8 +218,10 @@ headless setup. Otherwise use the buttons in the dashboard.
 
 **GitHub** uses a real OAuth app: register one under
 [GitHub developer settings](https://github.com/settings/developers) with
-`http://localhost:5000/oauth/github/callback` as the callback URL, set
-`GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`, then press *Connect GitHub*. The
+`http://localhost:5000/oauth/github/callback` as the callback URL when running
+on its own, or `https://dashboard.home/oauth/github/callback` when it runs in
+the home server stack, which is what the compose file sets for you. Then set
+`GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` and press *Connect GitHub*. The
 dashboard only requests the `read:user` scope, which is enough for the profile,
 public repositories, and the public activity feed it reads. Set `GITHUB_TOKEN`
 to a personal access token instead if you would rather skip the browser; it

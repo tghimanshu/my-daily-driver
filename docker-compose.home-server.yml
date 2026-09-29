@@ -1,0 +1,103 @@
+# ═══════════════════════════════════════════════════
+# DAILY DRIVER DASHBOARD — home server
+# ═══════════════════════════════════════════════════
+#
+# This file is not started on its own. It is pulled into the home server stack
+# by an `include` in ../home-server/docker-compose.yml:
+#
+#   include:
+#     - ../my-daily-driver/docker-compose.home-server.yml
+#
+# Compose merges the service below into that project, so it lands on the same
+# network as Caddy and the rest of the stack, and a single
+# `docker compose up -d` in ../home-server starts everything. Do not run
+# `docker compose -f docker-compose.home-server.yml up` directly: on its own
+# there is no Caddy to serve it and no network to sit on.
+#
+# OPEN → https://dashboard.home
+#
+# BEFORE STARTING:
+#   1. cp .env.example .env in THIS folder and fill it in. It is gitignored and
+#      read at run time, never baked into the image.
+#   2. Set SECRET_KEY to 32+ random characters, or every restart signs you out:
+#        python -c "import secrets; print(secrets.token_hex(32))"
+#   3. Register the GitHub OAuth app with the callback URL below:
+#        https://dashboard.home/oauth/github/callback
+#      https://github.com/settings/developers
+#   4. Add `dashboard.home { tls internal; reverse_proxy daily-driver:5000 }` to
+#      ../home-server/Caddyfile and `docker compose restart caddy`.
+#
+# Rebuild after changing the app:
+#   cd ../home-server && docker compose up -d --build daily-driver
+# ═══════════════════════════════════════════════════
+
+services:
+  daily-driver:
+    # Relative to this file, which is what Compose uses as the project directory
+    # for an included file. Nothing to build if the image is already there:
+    # `docker compose up -d` reuses it.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: my-daily-driver:home-server
+    container_name: daily-driver
+
+    # No ports here on purpose. Every other app in the stack is reached only
+    # through Caddy, and a published port would put the dashboard on the LAN in
+    # plain HTTP, bypassing the certificate. Caddy reaches it by container name
+    # over the shared network.
+    expose:
+      - "5000"
+
+    # Real environment variables win over .env in the app, and `environment:`
+    # wins over `env_file:`, so the four values below are the deployment
+    # decisions and everything else is yours to keep in .env.
+    env_file:
+      - .env
+    environment:
+      # 0.0.0.0 because a container is reached on its own interface by the
+      # proxy, never on its loopback. Without this Caddy would get connection
+      # refused.
+      HOST: "0.0.0.0"
+      PORT: "5000"
+      TZ: "Asia/Kolkata"
+      # Must match the callback registered on the GitHub OAuth app, or GitHub
+      # redirects to a page that does not exist. It is set here rather than left
+      # to Flask's url_for because nothing in the app trusts Caddy's
+      # X-Forwarded-Proto, so an auto-generated URL would come out as http.
+      GITHUB_REDIRECT_URI: "https://dashboard.home/oauth/github/callback"
+
+    # No `networks:` on purpose either. An included service with no network of
+    # its own joins the including project's default network, which is the one
+    # Caddy is on. Naming one here would detach it from Caddy.
+
+    restart: unless-stopped
+
+    # Everything this process holds is in memory, so there is nothing to
+    # persist and nowhere it needs to write. A read-only root filesystem means a
+    # stolen token cannot be written to disk even if the process is compromised.
+    # The cost is that a restart drops every browser login.
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request as u, sys; sys.exit(0 if u.urlopen('http://127.0.0.1:5000/api/auth/status', timeout=4).status == 200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+# The test suite stays in docker-compose.yml rather than here. It mounts the
+# working tree and needs a project of its own; running it from the home server
+# stack would put a /src bind mount into a stack that is supposed to be
+# self-contained. Run it from this folder:
+#   docker compose run --rm tests

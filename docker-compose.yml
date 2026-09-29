@@ -19,7 +19,11 @@
 #   This joins the network of the other stack so SELF_HOSTED_SITES can address
 #   those containers by name. Start that stack first, or create the network by
 #   hand once:
-#     docker network create home-server_self-hosted
+#     docker network create home-server_default
+#
+#   Or skip all of this and run it as part of the stack instead, which is the
+#   normal way to use it:
+#     cd ../home-server && docker compose up -d --build daily-driver
 # ═══════════════════════════════════════════════════
 
 name: my-daily-driver
@@ -90,6 +94,10 @@ services:
 
 networks:
   self-hosted:
-    # The other stack's network, named <project>_<network> by compose.
+    # The other stack's network. Compose names a project's default network
+    # <project>_<network>, and that stack declares no networks of its own, so
+    # this is home-server_default. Compose needs it to already exist, hence
+    # external: true; the other stack adopts a matching existing network without
+    # complaint.
     external: true
-    name: home-server_self-hosted
+    name: home-server_default
